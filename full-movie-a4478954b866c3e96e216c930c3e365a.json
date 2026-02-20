@@ -1,0 +1,72 @@
+{
+  "name": "Full Movie",
+  "items": [
+    {
+      "type": "MOVIE",
+      "external_id": "avatar_external_id",
+      "data": {
+        "title": "Avatar",
+        "original_title": "James Cameron's Avatar",
+        "description": "Avatar is a 2009 American epic science fiction film...",
+        "synopsis": "In 2154, humans have depleted Earth's natural resources...",
+        "released": "2009-12-10",
+        "studio": "20th Century Fox",
+        "tags": ["3D", "SciFi", "Highlight"],
+        "cast": ["Sam Worthington", "Zoe Saldana", "Sigourney Weaver"],
+        "production_countries": [
+          "United States of America",
+          "Estonia",
+          "Germany",
+          "COL",
+          "ESP"
+        ],
+        "genres": ["Sci-Fi", "Drama"],
+        "licenses": [
+          {
+            "start": "2020-08-01T00:00:00.000+00:00",
+            "end": "2020-08-30T23:59:59.999+00:00",
+            "countries": ["AW", "AT", "FI"]
+          }
+        ],
+        "main_video": {
+          "source": "test_video",
+          "profile": "DEFAULT"
+        },
+        "trailers": [
+          {
+            "source": "trailers/test_video_1",
+            "profile": "DEFAULT"
+          },
+          {
+            "source": "trailers/test_video_2",
+            "profile": "DEFAULT"
+          }
+        ],
+        "images": [
+          {
+            "path": "avatar_1.jpg",
+            "type": "COVER"
+          },
+          {
+            "path": "avatar_2.jpg",
+            "type": "TEASER"
+          }
+        ],
+        "localizations": [
+          {
+            "language_tag": "de-DE",
+            "title": "Avatar – Aufbruch nach Pandora",
+            "description": "Avatar ist ein US-amerikanischer Science-Fiction-Epos aus dem Jahr 2009...",
+            "synopsis": "Im Jahr 2154 haben die Menschen die natürlichen Ressourcen der Erde erschöpft..."
+          },
+          {
+            "language_tag": "et-EE",
+            "title": "Avatar",
+            "description": "Avatar on 2009. aasta Ameerika eepiline ulmefilm...",
+            "synopsis": "Aastal 2154 on inimesed ammendanud Maa loodusvarad..."
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Movie with Video",
+  "items": [
+    {
+      "type": "MOVIE",
+      "external_id": "avatar_external_id",
+      "data": {
+        "title": "Avatar",
+        "main_video": {
+          "source": "test_video",
+          "profile": "DEFAULT"
+        }
+      }
+    }
+  ]
+}

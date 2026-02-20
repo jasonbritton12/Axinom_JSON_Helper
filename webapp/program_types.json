@@ -1,0 +1,41 @@
+{
+  "version": "1.0.0",
+  "schema_note": "Based on ingest-validation-schema-59b6e6fb34b1e38d3451d80b7404ee2a.json",
+  "program_types": {
+    "MOVIE": {
+      "ingest_type": "MOVIE",
+      "required": ["external_id", "title"],
+      "notes": []
+    },
+    "TVSHOW": {
+      "ingest_type": "TVSHOW",
+      "required": ["external_id", "title"],
+      "notes": []
+    },
+    "SEASON": {
+      "ingest_type": "SEASON",
+      "required": ["external_id", "index", "parent_external_id"],
+      "notes": []
+    },
+    "EPISODE": {
+      "ingest_type": "EPISODE",
+      "required": ["external_id", "title", "index", "parent_external_id"],
+      "notes": []
+    }
+  },
+  "type_aliases": {
+    "MOVIE": "MOVIE",
+    "TVSHOW": "TVSHOW",
+    "SEASON": "SEASON",
+    "EPISODE": "EPISODE",
+    "TRAILER": "MOVIE",
+    "EXTRA": "MOVIE",
+    "SHOW": "TVSHOW",
+    "TV SHOW": "TVSHOW",
+    "SERIES": "TVSHOW",
+    "TVSERIES": "TVSHOW",
+    "TVSEASON": "SEASON",
+    "TVEPISODE": "EPISODE",
+    "PREVIEW": "MOVIE"
+  }
+}
