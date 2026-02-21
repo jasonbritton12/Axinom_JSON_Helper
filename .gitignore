@@ -2,3 +2,5 @@
 ~$*.xlsx
 __pycache__/
 *.pyc
+release/macos/build/
+release/macos/dist/

@@ -2,7 +2,13 @@ const state = {
   requiredFields: {},
   programTypes: ["MOVIE", "TVSHOW", "SEASON", "EPISODE"],
   currentJson: '{\n  "name": "Axinom Ingest",\n  "items": []\n}',
+  theme: "dark",
 };
+
+const THEME_STORAGE_KEY = "axinom_ingest_theme";
+const VALID_THEMES = new Set(["dark", "light"]);
+const HEARTBEAT_INTERVAL_MS = 15000;
+let heartbeatTimer = null;
 
 const singleFieldIds = [
   "program_type",
@@ -167,6 +173,70 @@ const DIRECT_COLUMNS = [
 
 function byId(id) {
   return document.getElementById(id);
+}
+
+function resolveInitialTheme() {
+  try {
+    const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (saved && VALID_THEMES.has(saved)) {
+      return saved;
+    }
+  } catch (_error) {
+    // Ignore localStorage errors and use default.
+  }
+
+  return "dark";
+}
+
+function applyTheme(theme) {
+  const safeTheme = VALID_THEMES.has(theme) ? theme : "dark";
+  state.theme = safeTheme;
+  document.documentElement.setAttribute("data-theme", safeTheme);
+
+  const toggle = byId("theme-toggle");
+  if (toggle) {
+    const isDark = safeTheme === "dark";
+    toggle.textContent = isDark ? "Use Light Theme" : "Use Dark Theme";
+    toggle.setAttribute("aria-pressed", String(isDark));
+  }
+}
+
+function toggleTheme() {
+  const nextTheme = state.theme === "dark" ? "light" : "dark";
+  applyTheme(nextTheme);
+
+  try {
+    window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+  } catch (_error) {
+    // Ignore localStorage errors and keep current runtime theme.
+  }
+}
+
+function stopHeartbeat() {
+  if (heartbeatTimer) {
+    window.clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+}
+
+async function sendHeartbeat() {
+  try {
+    await fetch("/api/health", {
+      method: "GET",
+      cache: "no-store",
+      keepalive: true,
+    });
+  } catch (_error) {
+    // Ignore heartbeat failures; the next foreground interaction will surface issues.
+  }
+}
+
+function startHeartbeat() {
+  stopHeartbeat();
+  void sendHeartbeat();
+  heartbeatTimer = window.setInterval(() => {
+    void sendHeartbeat();
+  }, HEARTBEAT_INTERVAL_MS);
 }
 
 function setStatus(message, kind = "") {
@@ -690,6 +760,8 @@ function bindEvents() {
     button.addEventListener("click", () => activateTab(button.dataset.tabTarget));
   });
 
+  byId("theme-toggle").addEventListener("click", toggleTheme);
+
   byId("field-program_type").addEventListener("change", () => {
     updateRequiredHint();
     updateVisibleFields();
@@ -712,12 +784,15 @@ function bindEvents() {
 
   byId("copy-json").addEventListener("click", copyOutput);
   byId("download-json").addEventListener("click", downloadOutput);
+  window.addEventListener("beforeunload", stopHeartbeat);
 }
 
 async function init() {
+  applyTheme(resolveInitialTheme());
   ensureLabelTextSpans();
   bindEvents();
   buildDirectTable();
+  startHeartbeat();
   await fetchConfig();
   renderJson(state.currentJson);
 }

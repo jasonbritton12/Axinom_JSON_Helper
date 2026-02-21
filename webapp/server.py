@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+import threading
 import traceback
 from email.parser import BytesParser
 from email.policy import default as email_policy
@@ -19,19 +21,49 @@ from xlsx_reader import parse_xlsx_rows
 
 
 BASE_DIR = Path(__file__).resolve().parent
-STATIC_DIR = BASE_DIR / "static"
-CONFIG_PATH = BASE_DIR / "program_types.json"
 WORKSPACE_DIR = BASE_DIR.parent
+MEIPASS_DIR = Path(getattr(sys, "_MEIPASS", BASE_DIR))
+
+
+def _resolve_existing_path(*candidates: Path) -> Path:
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+STATIC_DIR = _resolve_existing_path(
+    BASE_DIR / "static",
+    MEIPASS_DIR / "webapp" / "static",
+    MEIPASS_DIR / "static",
+)
+CONFIG_PATH = _resolve_existing_path(
+    BASE_DIR / "program_types.json",
+    MEIPASS_DIR / "webapp" / "program_types.json",
+    MEIPASS_DIR / "program_types.json",
+)
+
+
+def _resolve_template(filename: str) -> Path:
+    return _resolve_existing_path(
+        WORKSPACE_DIR / filename,
+        BASE_DIR.parent / filename,
+        BASE_DIR / filename,
+        MEIPASS_DIR / "templates" / filename,
+        MEIPASS_DIR / filename,
+    )
 
 TEMPLATE_FILES = {
-    "v1_0_0": WORKSPACE_DIR / "axinom_ingest_template_v1_0_0.xlsx",
-    "v1_1_0": WORKSPACE_DIR / "axinom_ingest_template_v1_1_0.xlsx",
-    "latest": WORKSPACE_DIR / "axinom_ingest_template_v1_1_0.xlsx",
+    "v1_0_0": _resolve_template("axinom_ingest_template_v1_0_0.xlsx"),
+    "v1_1_0": _resolve_template("axinom_ingest_template_v1_1_0.xlsx"),
+    "latest": _resolve_template("axinom_ingest_template_v1_1_0.xlsx"),
 }
 
 
 class AppRequestHandler(SimpleHTTPRequestHandler):
     converter = IngestConverter(CONFIG_PATH)
+    on_app_quit = None
+    on_activity = None
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, directory=str(STATIC_DIR), **kwargs)
@@ -49,9 +81,19 @@ class AppRequestHandler(SimpleHTTPRequestHandler):
         )
         print(message, end="")
 
+    def _notify_activity(self, path: str) -> None:
+        callback = getattr(self.__class__, "on_activity", None)
+        if not callback:
+            return
+        try:
+            callback(path)
+        except Exception:
+            return
+
     def do_GET(self) -> None:
         parsed_url = urlparse(self.path)
         path = parsed_url.path
+        self._notify_activity(path)
 
         if path == "/api/template-download":
             self._handle_template_download(parsed_url.query)
@@ -92,6 +134,18 @@ class AppRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, {"ok": True})
             return
 
+        if path == "/api/runtime":
+            has_quit = bool(getattr(self.__class__, "on_app_quit", None))
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "mode": "desktop" if has_quit else "web",
+                    "quit_supported": has_quit,
+                },
+            )
+            return
+
         # Serve static app assets.
         if path in ("/", ""):
             self.path = "/index.html"
@@ -99,8 +153,13 @@ class AppRequestHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self) -> None:
+        self._notify_activity(self.path)
         if self.path == "/api/single":
             self._handle_single()
+            return
+
+        if self.path == "/api/quit":
+            self._handle_quit()
             return
 
         if self.path == "/api/convert-rows":
@@ -123,6 +182,21 @@ class AppRequestHandler(SimpleHTTPRequestHandler):
         result = self.converter.form_payload_to_document(payload)
         status = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
         self._send_json(status, result)
+
+    def _handle_quit(self) -> None:
+        callback = getattr(self.__class__, "on_app_quit", None)
+        if not callback:
+            self._send_json(
+                HTTPStatus.CONFLICT,
+                {
+                    "ok": False,
+                    "error": "Quit endpoint is unavailable in this run mode.",
+                },
+            )
+            return
+
+        self._send_json(HTTPStatus.OK, {"ok": True})
+        threading.Thread(target=callback, daemon=True).start()
 
     def _handle_convert_rows(self) -> None:
         try:

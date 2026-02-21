@@ -1,0 +1,117 @@
+Last login: Thu Feb 19 19:14:04 on ttys028
+jasonbritton@Jasons-MacBook-Pro ~ % cd /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates
+./release/macos/build_macos_release.sh
+Requirement already satisfied: pip in ./release/macos/build/.venv/lib/python3.14/site-packages (25.3)
+Collecting pip
+  Using cached pip-26.0.1-py3-none-any.whl.metadata (4.7 kB)
+Collecting pyinstaller
+  Downloading pyinstaller-6.19.0-py3-none-macosx_10_13_universal2.whl.metadata (8.5 kB)
+Collecting altgraph (from pyinstaller)
+  Downloading altgraph-0.17.5-py2.py3-none-any.whl.metadata (7.5 kB)
+Collecting macholib>=1.8 (from pyinstaller)
+  Downloading macholib-1.16.4-py2.py3-none-any.whl.metadata (12 kB)
+Collecting packaging>=22.0 (from pyinstaller)
+  Using cached packaging-26.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting pyinstaller-hooks-contrib>=2026.0 (from pyinstaller)
+  Downloading pyinstaller_hooks_contrib-2026.1-py3-none-any.whl.metadata (16 kB)
+Collecting setuptools>=42.0.0 (from pyinstaller)
+  Using cached setuptools-82.0.0-py3-none-any.whl.metadata (6.6 kB)
+Using cached pip-26.0.1-py3-none-any.whl (1.8 MB)
+Downloading pyinstaller-6.19.0-py3-none-macosx_10_13_universal2.whl (1.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.0/1.0 MB 5.0 MB/s  0:00:00
+Downloading macholib-1.16.4-py2.py3-none-any.whl (38 kB)
+Downloading altgraph-0.17.5-py2.py3-none-any.whl (21 kB)
+Using cached packaging-26.0-py3-none-any.whl (74 kB)
+Downloading pyinstaller_hooks_contrib-2026.1-py3-none-any.whl (452 kB)
+Using cached setuptools-82.0.0-py3-none-any.whl (1.0 MB)
+Installing collected packages: altgraph, setuptools, pip, packaging, macholib, pyinstaller-hooks-contrib, pyinstaller
+  Attempting uninstall: pip
+    Found existing installation: pip 25.3
+    Uninstalling pip-25.3:
+      Successfully uninstalled pip-25.3
+Successfully installed altgraph-0.17.5 macholib-1.16.4 packaging-26.0 pip-26.0.1 pyinstaller-6.19.0 pyinstaller-hooks-contrib-2026.1 setuptools-82.0.0
+35 INFO: PyInstaller: 6.19.0, contrib hooks: 2026.1
+35 INFO: Python: 3.14.0
+44 INFO: Platform: macOS-15.6.1-arm64-arm-64bit-Mach-O
+44 INFO: Python environment: /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/.venv
+44 INFO: wrote /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/pyinstaller/spec/Axinom Ingest Helper.spec
+47 INFO: Removing temporary files and cleaning cache in /Users/jasonbritton/Library/Application Support/pyinstaller
+78 INFO: Module search paths (PYTHONPATH):
+['/opt/homebrew/Cellar/python@3.14/3.14.0_1/Frameworks/Python.framework/Versions/3.14/lib/python314.zip',
+ '/opt/homebrew/Cellar/python@3.14/3.14.0_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14',
+ '/opt/homebrew/Cellar/python@3.14/3.14.0_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload',
+ '/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/.venv/lib/python3.14/site-packages',
+ '/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/webapp']
+173 INFO: Appending 'datas' from .spec
+174 INFO: checking Analysis
+174 INFO: Building Analysis because Analysis-00.toc is non existent
+174 INFO: Looking for Python shared library...
+177 INFO: Using Python shared library: /opt/homebrew/Cellar/python@3.14/3.14.0_1/Frameworks/Python.framework/Versions/3.14/Python
+177 INFO: Running Analysis Analysis-00.toc
+177 INFO: Target bytecode optimization level: 0
+177 INFO: Initializing module dependency graph...
+177 INFO: Initializing module graph hook caches...
+182 INFO: Analyzing modules for base_library.zip ...
+441 INFO: Processing standard module hook 'hook-encodings.py' from '/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+1938 INFO: Processing standard module hook 'hook-difflib.py' from '/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+1946 INFO: Processing standard module hook 'hook-heapq.py' from '/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+2013 INFO: Processing standard module hook 'hook-pickle.py' from '/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+2937 INFO: Caching module dependency graph...
+2952 INFO: Analyzing /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/webapp/desktop_launcher.py
+2955 INFO: Processing pre-find-module-path hook 'hook-tkinter.py' from '/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/.venv/lib/python3.14/site-packages/PyInstaller/hooks/pre_find_module_path'
+2956 INFO: TclTkInfo: initializing cached Tcl/Tk info...
+3011 WARNING: tkinter installation is broken. It will be excluded from the application
+3050 INFO: Processing standard module hook 'hook-_ctypes.py' from '/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+3229 INFO: Processing standard module hook 'hook-xml.py' from '/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+3243 INFO: Processing standard module hook 'hook-xml.etree.cElementTree.py' from '/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+3244 INFO: Processing module hooks (post-graph stage)...
+3280 INFO: Performing binary vs. data reclassification (8 entries)
+3283 INFO: Looking for ctypes DLLs
+3290 INFO: Analyzing run-time hooks ...
+3290 INFO: Including run-time hook 'pyi_rth_inspect.py' from '/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/.venv/lib/python3.14/site-packages/PyInstaller/hooks/rthooks'
+3294 INFO: Creating base_library.zip...
+3303 INFO: Looking for dynamic libraries
+3358 INFO: Warnings written to /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/pyinstaller/work/Axinom Ingest Helper/warn-Axinom Ingest Helper.txt
+3364 INFO: Graph cross-reference written to /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/pyinstaller/work/Axinom Ingest Helper/xref-Axinom Ingest Helper.html
+3391 INFO: checking PYZ
+3391 INFO: Building PYZ because PYZ-00.toc is non existent
+3391 INFO: Building PYZ (ZlibArchive) /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/pyinstaller/work/Axinom Ingest Helper/PYZ-00.pyz
+3510 INFO: Building PYZ (ZlibArchive) /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/pyinstaller/work/Axinom Ingest Helper/PYZ-00.pyz completed successfully.
+3511 INFO: EXE target arch: arm64
+3511 INFO: Code signing identity: None
+3512 INFO: checking PKG
+3512 INFO: Building PKG because PKG-00.toc is non existent
+3512 INFO: Building PKG (CArchive) Axinom Ingest Helper.pkg
+3519 INFO: Building PKG (CArchive) Axinom Ingest Helper.pkg completed successfully.
+3520 INFO: Bootloader /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/.venv/lib/python3.14/site-packages/PyInstaller/bootloader/Darwin-64bit/runw
+3520 INFO: checking EXE
+3520 INFO: Building EXE because EXE-00.toc is non existent
+3520 INFO: Building EXE from EXE-00.toc
+3520 INFO: Copying bootloader EXE to /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/pyinstaller/work/Axinom Ingest Helper/Axinom Ingest Helper
+3520 INFO: Converting EXE to target arch (arm64)
+3540 INFO: Removing signature(s) from EXE
+3551 INFO: Modifying Mach-O image UUID(s) in EXE
+3553 INFO: Appending PKG archive to EXE
+3554 INFO: Fixing EXE headers for code signing
+3556 INFO: Rewriting the executable's macOS SDK version (15.5.0) to match the SDK version of the Python library (15.4.0) in order to avoid inconsistent behavior and potential UI issues in the frozen application.
+3557 INFO: Re-signing the EXE
+3569 INFO: Building EXE from EXE-00.toc completed successfully.
+3570 INFO: checking COLLECT
+3570 INFO: Building COLLECT because COLLECT-00.toc is non existent
+3571 INFO: Building COLLECT COLLECT-00.toc
+4917 INFO: Building COLLECT COLLECT-00.toc completed successfully.
+4918 INFO: checking BUNDLE
+4918 INFO: Building BUNDLE because BUNDLE-00.toc is non existent
+4918 INFO: Building BUNDLE BUNDLE-00.toc
+6168 INFO: Signing the BUNDLE...
+6203 INFO: Building BUNDLE BUNDLE-00.toc completed successfully.
+6204 INFO: Build complete! The results are available in: /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/pyinstaller/dist
+pkgbuild: Inferring bundle components from contents of /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/build/pkgroot
+pkgbuild: Adding component at Applications/Axinom Ingest Helper.app
+pkgbuild: Adding component at Applications/Axinom Ingest Helper.app/Contents/Frameworks/Python.framework
+pkgbuild: Wrote package to /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/dist/AxinomIngestHelper-2026.02.20.pkg
+
+Release complete:
+  /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/dist/AxinomIngestHelper-2026.02.20.pkg
+  /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/release/macos/dist/AxinomIngestHelper-2026.02.20-README.txt
+jasonbritton@Jasons-MacBook-Pro JSON_Ingest_Templates % 

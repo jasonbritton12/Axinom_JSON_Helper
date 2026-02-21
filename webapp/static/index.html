@@ -9,7 +9,12 @@
   <body>
     <main class="page">
       <section class="hero">
-        <h1>Axinom Ingest JSON Helper</h1>
+        <div class="hero-head">
+          <h1>Axinom Ingest JSON Helper</h1>
+          <button id="theme-toggle" type="button" class="theme-toggle" aria-label="Toggle color theme">
+            Use Light Theme
+          </button>
+        </div>
         <p>Single-title form, bulk Excel conversion, and direct spreadsheet-style entry.</p>
       </section>
 
@@ -246,8 +251,8 @@
         <div id="status" class="status">Ready.</div>
         <pre class="output"><code id="json-output" class="json-code"></code></pre>
         <div class="actions">
-          <button id="copy-json" type="button">Copy JSON</button>
           <button id="download-json" type="button">Download JSON</button>
+          <button id="copy-json" type="button">Copy JSON</button>
         </div>
       </section>
 
