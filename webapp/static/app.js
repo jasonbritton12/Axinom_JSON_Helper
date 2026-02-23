@@ -280,10 +280,16 @@ function formatErrors(result) {
     if (result.errors.length && typeof result.errors[0] === "object") {
       return result.errors
         .map((entry) => {
-          const row = entry.row ? `Row ${entry.row}` : "File";
-          const details = Array.isArray(entry.errors)
-            ? entry.errors.join(", ")
+          const detailsList = Array.isArray(entry.errors)
+            ? entry.errors.map((value) => String(value || "")).filter(Boolean)
+            : [];
+          const details = detailsList.length
+            ? detailsList.join(" | ")
             : String(entry.errors || "Unknown error");
+          if (/^Error at /i.test(details)) {
+            return details;
+          }
+          const row = entry.row ? `Row ${entry.row}` : "File";
           return `${row}: ${details}`;
         })
         .join(" | ");

@@ -30,6 +30,9 @@ class ParsedSheet:
     sheet_name: str
     headers: List[str]
     rows: List[Dict[str, str]]
+    row_numbers: List[int]
+    row_cells: List[Dict[str, str]]
+    header_cells: Dict[str, str]
 
 
 def _col_to_index(col_letters: str) -> int:
@@ -37,6 +40,15 @@ def _col_to_index(col_letters: str) -> int:
     for char in col_letters:
         value = (value * 26) + (ord(char) - ord("A") + 1)
     return value - 1
+
+
+def _index_to_col(index: int) -> str:
+    value = index + 1
+    letters = ""
+    while value > 0:
+        value, remainder = divmod(value - 1, 26)
+        letters = chr(ord("A") + remainder) + letters
+    return letters
 
 
 def _read_shared_strings(zf: zipfile.ZipFile) -> List[str]:
@@ -106,12 +118,13 @@ def _parse_sheet_rows(
     zf: zipfile.ZipFile,
     sheet_target: str,
     shared_strings: List[str],
-) -> List[Dict[int, str]]:
+) -> List[Tuple[int, Dict[int, str]]]:
     root = ET.fromstring(zf.read(sheet_target))
-    result: List[Dict[int, str]] = []
+    result: List[Tuple[int, Dict[int, str]]] = []
 
     for row in root.findall(".//m:sheetData/m:row", NS):
         values_by_col: Dict[int, str] = {}
+        row_number = int(row.attrib.get("r", "0") or "0")
         for cell in row.findall("m:c", NS):
             cell_ref = cell.attrib.get("r", "")
             match = CELL_REF_RE.match(cell_ref)
@@ -124,35 +137,49 @@ def _parse_sheet_rows(
             values_by_col[col_index] = value
 
         if values_by_col:
-            result.append(values_by_col)
+            if row_number <= 0:
+                row_number = len(result) + 1
+            result.append((row_number, values_by_col))
 
     return result
 
 
-def _extract_header_and_records(raw_rows: List[Dict[int, str]]) -> Tuple[List[str], List[Dict[str, str]]]:
+def _extract_header_and_records(
+    raw_rows: List[Tuple[int, Dict[int, str]]]
+) -> Tuple[List[str], List[Dict[str, str]], List[int], List[Dict[str, str]], Dict[str, str]]:
     if not raw_rows:
-        return [], []
+        return [], [], [], [], {}
 
-    header_cells = raw_rows[0]
-    max_col = max(header_cells.keys())
+    header_row_number, header_cells_by_index = raw_rows[0]
+    max_col = max(header_cells_by_index.keys())
     headers: List[str] = []
+    header_cells: Dict[str, str] = {}
     for idx in range(max_col + 1):
-        header_text = header_cells.get(idx, "").strip()
+        header_text = header_cells_by_index.get(idx, "").strip()
         headers.append(header_text)
+        if header_text:
+            header_cells[header_text] = f"{_index_to_col(idx)}{header_row_number}"
 
     records: List[Dict[str, str]] = []
-    for raw_row in raw_rows[1:]:
+    row_numbers: List[int] = []
+    row_cells: List[Dict[str, str]] = []
+
+    for row_number, raw_row in raw_rows[1:]:
         row: Dict[str, str] = {}
+        cell_map: Dict[str, str] = {}
         for idx, header in enumerate(headers):
             if not header:
                 continue
             value = raw_row.get(idx, "").strip()
             row[header] = value
+            cell_map[header] = f"{_index_to_col(idx)}{row_number}"
 
         if any(value for value in row.values()):
             records.append(row)
+            row_numbers.append(row_number)
+            row_cells.append(cell_map)
 
-    return headers, records
+    return headers, records, row_numbers, row_cells, header_cells
 
 
 def parse_xlsx_rows(file_bytes: bytes, sheet_name: Optional[str] = None) -> ParsedSheet:
@@ -177,6 +204,13 @@ def parse_xlsx_rows(file_bytes: bytes, sheet_name: Optional[str] = None) -> Pars
             selected_name, selected_target = sheets[0]
 
         raw_rows = _parse_sheet_rows(zf, selected_target, shared_strings)
-        headers, records = _extract_header_and_records(raw_rows)
+        headers, records, row_numbers, row_cells, header_cells = _extract_header_and_records(raw_rows)
 
-        return ParsedSheet(sheet_name=selected_name, headers=headers, rows=records)
+        return ParsedSheet(
+            sheet_name=selected_name,
+            headers=headers,
+            rows=records,
+            row_numbers=row_numbers,
+            row_cells=row_cells,
+            header_cells=header_cells,
+        )

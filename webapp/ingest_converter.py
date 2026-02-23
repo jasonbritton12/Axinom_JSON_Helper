@@ -146,12 +146,20 @@ class IngestConverter:
         sheet_name: str,
         document_description: str = "",
         document_created: str = "",
+        row_numbers: Optional[List[int]] = None,
+        row_cells: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
         items: List[Dict[str, Any]] = []
         warnings: List[str] = []
         row_errors: List[Dict[str, Any]] = []
 
-        for idx, row in enumerate(rows, start=2):
+        for idx, row in enumerate(rows):
+            sheet_row_number = (
+                row_numbers[idx]
+                if row_numbers and idx < len(row_numbers)
+                else idx + 2
+            )
+            sheet_row_cells = row_cells[idx] if row_cells and idx < len(row_cells) else {}
             fields = self._map_row_to_fields(row)
 
             # Skip purely empty rows.
@@ -160,10 +168,20 @@ class IngestConverter:
 
             build_result = self._build_item(fields)
             if build_result.errors:
+                normalized_type = self.normalize_program_type(fields.get("program_type"))
+                formatted_errors = [
+                    _format_sheet_error_message(
+                        error,
+                        row_number=sheet_row_number,
+                        row_cells=sheet_row_cells,
+                        normalized_program_type=normalized_type,
+                    )
+                    for error in build_result.errors
+                ]
                 row_errors.append(
                     {
-                        "row": idx,
-                        "errors": build_result.errors,
+                        "row": sheet_row_number,
+                        "errors": formatted_errors,
                         "raw_row": row,
                     }
                 )
@@ -171,9 +189,9 @@ class IngestConverter:
 
             items.append(build_result.item)
             for warning in build_result.warnings:
-                warnings.append(f"Row {idx}: {warning}")
+                warnings.append(f"Row {sheet_row_number}: {warning}")
 
-        overall_ok = len(items) > 0
+        overall_ok = len(items) > 0 and len(row_errors) == 0
 
         if not overall_ok and not row_errors:
             row_errors.append(
@@ -184,7 +202,7 @@ class IngestConverter:
                 }
             )
 
-        document = {"name": document_name, "items": items} if items else None
+        document = {"name": document_name, "items": items} if items and not row_errors else None
         if document:
             description = _clean_text(document_description)
             created = _normalize_document_created(document_created)
@@ -372,6 +390,96 @@ def _pick_external_id(candidates: List[Tuple[str, str]]) -> str:
                 return value
 
     return best_value
+
+
+def _sheet_error_field_candidates(field: str) -> List[str]:
+    mapping = {
+        "program_type": ["assettype", "programtype"],
+        "external_id": ["externalid", "titlealternateid", "guid", "series", "id"],
+        "title": ["title"],
+        "index": ["seasonepnumber", "episodenumber", "seasonnumber"],
+        "parent_external_id": ["parentexternalid"],
+        "language_tag": ["languagetag", "language"],
+        "video_source": ["videosource"],
+        "trailer_source": ["trailersource"],
+    }
+    return mapping.get(field, [field])
+
+
+def _sheet_error_cell_ref(field: str, row_cells: Dict[str, str]) -> str:
+    if not row_cells:
+        return ""
+
+    normalized_to_cells: List[Tuple[str, str]] = [
+        (_normalize_header(header), cell_ref)
+        for header, cell_ref in row_cells.items()
+        if header
+    ]
+
+    for candidate in _sheet_error_field_candidates(field):
+        for normalized_header, cell_ref in normalized_to_cells:
+            if normalized_header == candidate:
+                return cell_ref
+
+    return ""
+
+
+def _type_noun(normalized_program_type: str, plural: bool = True) -> str:
+    singular = {
+        "MOVIE": "Movie",
+        "TVSHOW": "TV show",
+        "SEASON": "Season",
+        "EPISODE": "Episode",
+    }
+    base = singular.get(normalized_program_type, "Item")
+    if not plural:
+        return base
+    if base.endswith("s"):
+        return base
+    return f"{base}s"
+
+
+def _format_sheet_error_message(
+    error: str,
+    *,
+    row_number: int,
+    row_cells: Dict[str, str],
+    normalized_program_type: str,
+) -> str:
+    field = ""
+    message = error
+
+    if error.startswith("Missing required field: "):
+        field = error.split(": ", 1)[1].strip()
+        if field == "external_id":
+            message = "External ID is required"
+        elif field == "title":
+            message = f"{_type_noun(normalized_program_type)} must have a title"
+        elif field == "index":
+            message = f"{_type_noun(normalized_program_type)} must have a number"
+        elif field == "parent_external_id":
+            message = f"{_type_noun(normalized_program_type)} must have a parent external ID"
+        else:
+            message = error
+    elif error == "Field 'index' must be an integer greater than 0":
+        field = "index"
+        message = f"{_type_noun(normalized_program_type)} must have a number greater than 0"
+    elif error == "Field 'language_tag' is required when localized fields are provided":
+        field = "language_tag"
+        message = "Language Tag is required when localized fields are provided"
+    elif error == "Field 'main_video.source' is required when 'main_video.profile' is set":
+        field = "video_source"
+        message = "Video Source is required when Video Profile is set"
+    elif error == "Field 'trailers[].source' is required when 'trailers[].profile' is set":
+        field = "trailer_source"
+        message = "Trailer Source is required when Trailer Profile is set"
+    elif error.startswith("Unsupported program type "):
+        field = "program_type"
+
+    cell_ref = _sheet_error_cell_ref(field, row_cells) if field else ""
+    if cell_ref:
+        return f"Error at {cell_ref}: {message}"
+    return f"Error at row {row_number}: {message}"
 
 
 def _derive_parent_external_id(external_id: str, ingest_type: str) -> str:

@@ -35,14 +35,14 @@
   --status-ok-bg: #183826;
   --status-warn-bg: #3a2f1c;
   --status-error-bg: #3a1f23;
-  --output-bg: #090f19;
-  --output-text: #dce8f8;
-  --output-border: #2d4460;
-  --json-key: #7cc6ff;
-  --json-string: #f5c08f;
-  --json-number: #9ed68e;
-  --json-boolean: #6db8f8;
-  --json-null: #d0a3e8;
+  --output-bg: #0d1117;
+  --output-text: #c9d1d9;
+  --output-border: #30363d;
+  --json-key: #79c0ff;
+  --json-string: #a5d6ff;
+  --json-number: #d2a8ff;
+  --json-boolean: #ff7b72;
+  --json-null: #ffa657;
   --theme-toggle-bg: rgba(255, 255, 255, 0.18);
   --theme-toggle-border: rgba(255, 255, 255, 0.28);
 }
@@ -84,14 +84,14 @@
   --status-ok-bg: #e4f6eb;
   --status-warn-bg: #fff0df;
   --status-error-bg: #fce8e8;
-  --output-bg: #0c1a28;
-  --output-text: #d7e9f8;
-  --output-border: #203347;
-  --json-key: #9cdcfe;
-  --json-string: #ce9178;
-  --json-number: #b5cea8;
-  --json-boolean: #569cd6;
-  --json-null: #c586c0;
+  --output-bg: #f6f8fa;
+  --output-text: #24292f;
+  --output-border: #d0d7de;
+  --json-key: #0550ae;
+  --json-string: #0a3069;
+  --json-number: #953800;
+  --json-boolean: #cf222e;
+  --json-null: #8250df;
   --theme-toggle-bg: rgba(255, 255, 255, 0.2);
   --theme-toggle-border: rgba(255, 255, 255, 0.33);
 }

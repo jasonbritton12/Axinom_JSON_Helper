@@ -56,7 +56,8 @@ def _resolve_template(filename: str) -> Path:
 TEMPLATE_FILES = {
     "v1_0_0": _resolve_template("axinom_ingest_template_v1_0_0.xlsx"),
     "v1_1_0": _resolve_template("axinom_ingest_template_v1_1_0.xlsx"),
-    "latest": _resolve_template("axinom_ingest_template_v1_1_0.xlsx"),
+    "v1_2_0": _resolve_template("axinom_ingest_template_v1_2_0.xlsx"),
+    "latest": _resolve_template("axinom_ingest_template_v1_2_0.xlsx"),
 }
 
 
@@ -274,6 +275,8 @@ class AppRequestHandler(SimpleHTTPRequestHandler):
                 sheet_name=parsed.sheet_name,
                 document_description=document_description,
                 document_created=document_created,
+                row_numbers=parsed.row_numbers,
+                row_cells=parsed.row_cells,
             )
 
             status = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
