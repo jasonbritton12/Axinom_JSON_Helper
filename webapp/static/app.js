@@ -353,8 +353,28 @@ function singleFieldLabel(fieldId) {
   return labelNode ? labelNode.textContent.trim().replace(/\s+\*$/, "") : fieldId;
 }
 
+function updateIndexFieldLabel(programType) {
+  const labelNode = document.querySelector('#tab-single label[data-field="index"] .label-text');
+  if (!labelNode) {
+    return;
+  }
+
+  if (programType === "SEASON") {
+    labelNode.textContent = "Season Index (Season Number)";
+    return;
+  }
+
+  if (programType === "EPISODE") {
+    labelNode.textContent = "Episode Index (Episode Number)";
+    return;
+  }
+
+  labelNode.textContent = "Index";
+}
+
 function updateRequiredHint() {
   const programType = byId("field-program_type").value;
+  updateIndexFieldLabel(programType);
   const ingestMode = currentSingleIngestMode();
   const required = [...requiredFieldsForSingle(programType, ingestMode)].filter((field) => field !== "program_type");
   const requiredLabels = required.map((field) => singleFieldLabel(field));
@@ -378,6 +398,7 @@ function updateRequiredFieldStyles() {
 
 function updateVisibleFields() {
   const programType = byId("field-program_type").value;
+  updateIndexFieldLabel(programType);
   const ingestMode = currentSingleIngestMode();
   const visibilityMap = ingestMode === "FULL" ? FULL_FIELD_VISIBILITY : SIMPLE_FIELD_VISIBILITY;
   const visible = visibilityMap[programType] || visibilityMap.MOVIE;
