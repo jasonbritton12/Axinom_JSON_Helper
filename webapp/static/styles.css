@@ -142,6 +142,13 @@ body {
   opacity: 0.95;
 }
 
+.release-meta {
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+  opacity: 0.92;
+}
+
 .theme-toggle {
   border: 1px solid var(--theme-toggle-border);
   border-radius: 999px;
@@ -286,6 +293,12 @@ textarea {
   background: var(--field-bg);
   color: var(--ink);
   min-width: 0;
+}
+
+select[multiple] {
+  min-height: 7.6rem;
+  padding: 0.34rem 0.42rem;
+  overflow-y: auto;
 }
 
 input:focus-visible,

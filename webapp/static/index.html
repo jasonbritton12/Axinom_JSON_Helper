@@ -16,6 +16,7 @@
           </button>
         </div>
         <p>Single-title form, bulk Excel conversion, and direct spreadsheet-style entry.</p>
+        <p class="release-meta">Release: <span id="app-release">v1.3.0 (2026-03-10)</span></p>
       </section>
 
       <section class="card tabs-card">
@@ -27,7 +28,7 @@
 
         <div id="tab-single" class="tab-panel is-active" role="tabpanel">
           <h2>Single Item Builder</h2>
-          <p class="helper">Use `Trailer Source/Profile` to attach trailers to the parent item. Set `External ID` to the parent title external ID.</p>
+          <p class="helper">`Simple` mode shows minimum ingest fields. Use `Full` mode for all fields. Trailers are attached to the parent item using `Trailer Source/Profile`.</p>
 
           <div class="grid three">
             <label>
@@ -44,7 +45,7 @@
             </label>
           </div>
 
-          <div class="grid two top-gap">
+          <div class="grid three top-gap">
             <label data-field="program_type" class="always-required">
               Program Type
               <select id="field-program_type">
@@ -52,6 +53,13 @@
                 <option>TVSHOW</option>
                 <option>SEASON</option>
                 <option>EPISODE</option>
+              </select>
+            </label>
+            <label class="always-required">
+              Ingest Mode
+              <select id="single-ingest-mode">
+                <option value="SIMPLE" selected>Simple (Minimum)</option>
+                <option value="FULL">Full</option>
               </select>
             </label>
             <label data-field="external_id">
@@ -108,8 +116,8 @@
               <input id="field-cast" type="text" />
             </label>
             <label data-field="production_countries">
-              Production Countries (ISO2, comma-separated)
-              <input id="field-production_countries" type="text" list="country-code-list" placeholder="US, CA" />
+              Production Countries (multi-select)
+              <select id="field-production_countries" multiple size="6"></select>
             </label>
             <label data-field="license_start">
               License Start (UTC)
@@ -120,8 +128,8 @@
               <input id="field-license_end" type="datetime-local" />
             </label>
             <label data-field="license_countries">
-              License Countries (ISO2, comma-separated)
-              <input id="field-license_countries" type="text" list="country-code-list" placeholder="US, CA" />
+              License Countries (multi-select)
+              <select id="field-license_countries" multiple size="6"></select>
             </label>
             <label data-field="video_source">
               Main Video Source
@@ -129,7 +137,7 @@
             </label>
             <label data-field="video_profile">
               Main Video Profile
-              <input id="field-video_profile" type="text" list="video-profile-list" placeholder="DEFAULT" />
+              <input id="field-video_profile" type="text" list="video-profile-list" placeholder="DRM (HLS+Dash) HD" />
             </label>
             <label data-field="trailer_source">
               Trailer Source
@@ -146,22 +154,6 @@
             <label data-field="teaser_image">
               Teaser Image
               <input id="field-teaser_image" type="text" placeholder="teasers/avatar.jpg" />
-            </label>
-            <label data-field="language_tag">
-              Localization Language Tag
-              <input id="field-language_tag" type="text" list="language-tag-list" placeholder="en-US" />
-            </label>
-            <label data-field="localized_title">
-              Localized Title
-              <input id="field-localized_title" type="text" />
-            </label>
-            <label data-field="localized_description">
-              Localized Description
-              <textarea id="field-localized_description"></textarea>
-            </label>
-            <label data-field="localized_synopsis">
-              Localized Synopsis
-              <textarea id="field-localized_synopsis"></textarea>
             </label>
           </div>
 
@@ -196,7 +188,8 @@
             <label>
               Template Version
               <select id="bulk-template-version">
-                <option value="latest">latest (v1.2.0)</option>
+                <option value="latest">latest (v1.3.0)</option>
+                <option value="v1_3_0">v1.3.0</option>
                 <option value="v1_2_0">v1.2.0</option>
                 <option value="v1_1_0">v1.1.0</option>
                 <option value="v1_0_0">v1.0.0</option>
@@ -258,9 +251,10 @@
       </section>
 
       <datalist id="video-profile-list">
-        <option value="DEFAULT"></option>
-        <option value="nDRM (HLS)"></option>
-        <option value="DRM (DASH & HLS)"></option>
+        <option value="nDRM (HLS-Only) HD"></option>
+        <option value="DRM (HLS+Dash) HD"></option>
+        <option value="nDRM (HLS-Only) SD"></option>
+        <option value="DRM (HLS+Dash) SD"></option>
       </datalist>
 
       <datalist id="country-code-list">
@@ -276,16 +270,6 @@
         <option value="NL"></option>
       </datalist>
 
-      <datalist id="language-tag-list">
-        <option value="en-US"></option>
-        <option value="en-GB"></option>
-        <option value="es-ES"></option>
-        <option value="fr-FR"></option>
-        <option value="de-DE"></option>
-        <option value="it-IT"></option>
-        <option value="pt-BR"></option>
-        <option value="sv-SE"></option>
-      </datalist>
     </main>
 
     <script src="/app.js" defer></script>

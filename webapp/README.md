@@ -5,11 +5,12 @@ Standalone local web app for creating Axinom ingest JSON.
 ## Features
 
 - `Single Title` tab: form-based item creation with program-type-specific field visibility.
+- `Single Title` includes ingest mode selection: `Simple (Minimum)` or `Full`.
 - `Bulk Excel` tab: upload `.xlsx` and convert rows to a single ingest JSON document.
 - `Direct Sheet` tab: spreadsheet-like in-browser entry and conversion.
-- `Template Download`: download `axinom_ingest_template_v1_2_0.xlsx` (latest), `v1_1_0`, or `v1_0_0`.
+- `Template Download`: download `axinom_ingest_template_v1_3_0.xlsx` (latest), `v1_2_0`, `v1_1_0`, or `v1_0_0`.
 - Date pickers (`date`, `datetime-local`) with manual entry support.
-- Picklists/datalists for program type, language tag, country code, and video profile.
+- Multi-select country pickers and profile picklists in UI.
 - Dark theme is default, with a persistent light/dark toggle.
 - Packaged desktop mode uses heartbeat + idle timeout to auto-shutdown when browser session closes/goes inactive.
 
@@ -37,11 +38,6 @@ Rules live in `/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/we
 
 ## Supported Extra Fields
 
-- `localizations` (single entry in UI):
-  - `language_tag`
-  - `title`
-  - `description`
-  - `synopsis`
 - `trailers` (single entry in UI):
   - `source`
   - `profile`
@@ -52,7 +48,7 @@ Rules live in `/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/we
 - `GET /api/config`
 - `GET /api/picklists`
 - `GET /api/runtime`
-- `GET /api/template-download?version=latest|v1_2_0|v1_1_0|v1_0_0`
+- `GET /api/template-download?version=latest|v1_3_0|v1_2_0|v1_1_0|v1_0_0`
 - `POST /api/single`
 - `POST /api/convert-excel`
 - `POST /api/convert-rows`

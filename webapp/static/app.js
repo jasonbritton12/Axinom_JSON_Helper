@@ -2,6 +2,7 @@ const state = {
   requiredFields: {},
   programTypes: ["MOVIE", "TVSHOW", "SEASON", "EPISODE"],
   currentJson: '{\n  "name": "Axinom Ingest",\n  "items": []\n}',
+  currentDownloadName: "axinom-ingest",
   theme: "dark",
 };
 
@@ -34,13 +35,9 @@ const singleFieldIds = [
   "trailer_profile",
   "cover_image",
   "teaser_image",
-  "language_tag",
-  "localized_title",
-  "localized_description",
-  "localized_synopsis",
 ];
 
-const FIELD_VISIBILITY = {
+const FULL_FIELD_VISIBILITY = {
   MOVIE: new Set([
     "title",
     "original_title",
@@ -61,10 +58,6 @@ const FIELD_VISIBILITY = {
     "trailer_profile",
     "cover_image",
     "teaser_image",
-    "language_tag",
-    "localized_title",
-    "localized_description",
-    "localized_synopsis",
   ]),
   TVSHOW: new Set([
     "title",
@@ -84,10 +77,6 @@ const FIELD_VISIBILITY = {
     "trailer_profile",
     "cover_image",
     "teaser_image",
-    "language_tag",
-    "localized_title",
-    "localized_description",
-    "localized_synopsis",
   ]),
   SEASON: new Set([
     "description",
@@ -107,10 +96,6 @@ const FIELD_VISIBILITY = {
     "trailer_profile",
     "cover_image",
     "teaser_image",
-    "language_tag",
-    "localized_title",
-    "localized_description",
-    "localized_synopsis",
   ]),
   EPISODE: new Set([
     "title",
@@ -134,12 +119,17 @@ const FIELD_VISIBILITY = {
     "trailer_profile",
     "cover_image",
     "teaser_image",
-    "language_tag",
-    "localized_title",
-    "localized_description",
-    "localized_synopsis",
   ]),
 };
+
+const SIMPLE_FIELD_VISIBILITY = {
+  MOVIE: new Set(["title", "video_source", "video_profile"]),
+  TVSHOW: new Set(["title"]),
+  SEASON: new Set(["index", "parent_external_id"]),
+  EPISODE: new Set(["title", "index", "parent_external_id", "video_source", "video_profile"]),
+};
+
+const SIMPLE_VIDEO_REQUIRED_TYPES = new Set(["MOVIE", "EPISODE"]);
 
 const DIRECT_COLUMNS = [
   "Asset Type",
@@ -163,10 +153,6 @@ const DIRECT_COLUMNS = [
   "Video Profile",
   "Cover Image",
   "Teaser Image",
-  "Language Tag",
-  "Localized Title",
-  "Localized Description",
-  "Localized Synopsis",
   "Trailer Source",
   "Trailer Profile",
 ];
@@ -243,6 +229,23 @@ function setStatus(message, kind = "") {
   const status = byId("status");
   status.textContent = message;
   status.className = "status" + (kind ? ` ${kind}` : "");
+}
+
+function normalizeString(value) {
+  return typeof value === "string" ? value.trim() : String(value || "").trim();
+}
+
+function sanitizeFilenameStem(value) {
+  const sanitized = normalizeString(value)
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "-")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^[-_.]+|[-_.]+$/g, "");
+  return sanitized || "axinom-ingest";
+}
+
+function setCurrentDownloadName(value) {
+  state.currentDownloadName = sanitizeFilenameStem(value);
 }
 
 function escapeHtml(value) {
@@ -332,12 +335,32 @@ function ensureLabelTextSpans() {
   });
 }
 
+function currentSingleIngestMode() {
+  return (byId("single-ingest-mode")?.value || "SIMPLE").toUpperCase();
+}
+
+function requiredFieldsForSingle(programType, ingestMode) {
+  const required = new Set([...(state.requiredFields[programType] || []), "program_type"]);
+  if (ingestMode === "SIMPLE" && SIMPLE_VIDEO_REQUIRED_TYPES.has(programType)) {
+    required.add("video_source");
+    required.add("video_profile");
+  }
+  return required;
+}
+
+function singleFieldLabel(fieldId) {
+  const labelNode = document.querySelector(`#tab-single label[data-field="${fieldId}"] .label-text`);
+  return labelNode ? labelNode.textContent.trim().replace(/\s+\*$/, "") : fieldId;
+}
+
 function updateRequiredHint() {
   const programType = byId("field-program_type").value;
-  const required = state.requiredFields[programType] || [];
+  const ingestMode = currentSingleIngestMode();
+  const required = [...requiredFieldsForSingle(programType, ingestMode)].filter((field) => field !== "program_type");
+  const requiredLabels = required.map((field) => singleFieldLabel(field));
   const requiredBox = byId("required-fields");
-  requiredBox.textContent = required.length
-    ? `Required for ${programType}: ${required.join(", ")}`
+  requiredBox.textContent = requiredLabels.length
+    ? `Required for ${programType} (${ingestMode === "FULL" ? "Full" : "Simple"}): ${requiredLabels.join(", ")}`
     : `No required field metadata found for ${programType}.`;
 
   updateRequiredFieldStyles();
@@ -345,7 +368,7 @@ function updateRequiredHint() {
 
 function updateRequiredFieldStyles() {
   const programType = byId("field-program_type").value;
-  const required = new Set([...(state.requiredFields[programType] || []), "program_type"]);
+  const required = requiredFieldsForSingle(programType, currentSingleIngestMode());
 
   document.querySelectorAll("#tab-single label[data-field]").forEach((label) => {
     const field = label.dataset.field;
@@ -355,7 +378,9 @@ function updateRequiredFieldStyles() {
 
 function updateVisibleFields() {
   const programType = byId("field-program_type").value;
-  const visible = FIELD_VISIBILITY[programType] || FIELD_VISIBILITY.MOVIE;
+  const ingestMode = currentSingleIngestMode();
+  const visibilityMap = ingestMode === "FULL" ? FULL_FIELD_VISIBILITY : SIMPLE_FIELD_VISIBILITY;
+  const visible = visibilityMap[programType] || visibilityMap.MOVIE;
 
   document.querySelectorAll("#single-fields-grid [data-field]").forEach((el) => {
     const field = el.dataset.field;
@@ -366,22 +391,67 @@ function updateVisibleFields() {
   updateRequiredFieldStyles();
 }
 
+function readInputValue(el) {
+  if (!el) {
+    return "";
+  }
+
+  if (el instanceof HTMLSelectElement && el.multiple) {
+    return [...el.selectedOptions]
+      .map((option) => option.value.trim())
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  return typeof el.value === "string" ? el.value.trim() : "";
+}
+
 function collectSinglePayload() {
   const fields = {};
   for (const fieldId of singleFieldIds) {
     const el = byId(`field-${fieldId}`);
-    fields[fieldId] = el ? el.value : "";
+    fields[fieldId] = readInputValue(el);
   }
 
   return {
-    name: byId("single-name").value,
-    description: byId("single-description").value,
-    document_created: byId("single-document_created").value,
+    name: readInputValue(byId("single-name")),
+    description: readInputValue(byId("single-description")),
+    document_created: readInputValue(byId("single-document_created")),
+    ingest_mode: currentSingleIngestMode(),
     fields,
   };
 }
 
+function validateSinglePayload(payload) {
+  const programType = payload?.fields?.program_type || byId("field-program_type").value;
+  const required = requiredFieldsForSingle(programType, currentSingleIngestMode());
+  const missingLabels = [];
+
+  required.forEach((fieldId) => {
+    if (fieldId === "program_type") {
+      return;
+    }
+    const value = normalizeString(payload?.fields?.[fieldId]);
+    if (!value) {
+      missingLabels.push(singleFieldLabel(fieldId));
+    }
+  });
+
+  if (!missingLabels.length) {
+    return "";
+  }
+
+  return `Missing required fields: ${missingLabels.join(", ")}`;
+}
+
 async function generateSingle() {
+  const payload = collectSinglePayload();
+  const validationMessage = validateSinglePayload(payload);
+  if (validationMessage) {
+    setStatus(validationMessage, "error");
+    return;
+  }
+
   setStatus("Generating JSON for single item...");
 
   const response = await fetch("/api/single", {
@@ -389,12 +459,13 @@ async function generateSingle() {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(collectSinglePayload()),
+    body: JSON.stringify(payload),
   });
 
   const result = await response.json();
 
   if (result.document) {
+    setCurrentDownloadName(result.document.name);
     renderJson(JSON.stringify(result.document, null, 2));
   }
 
@@ -439,6 +510,7 @@ async function convertBulk() {
   const result = await response.json();
 
   if (result.document) {
+    setCurrentDownloadName(result.document.name || byId("bulk-name").value || "axinom-bulk-ingest");
     renderJson(JSON.stringify(result.document, null, 2));
   }
 
@@ -481,10 +553,6 @@ function directInputConfig(columnName) {
 
   if (["Video Profile", "Trailer Profile"].includes(columnName)) {
     return { kind: "input", type: "text", list: "video-profile-list" };
-  }
-
-  if (columnName === "Language Tag") {
-    return { kind: "input", type: "text", list: "language-tag-list" };
   }
 
   return { kind: "input", type: "text" };
@@ -663,6 +731,7 @@ async function convertDirectRows() {
   const result = await response.json();
 
   if (result.document) {
+    setCurrentDownloadName(result.document.name || byId("direct-name").value || "axinom-direct-sheet-ingest");
     renderJson(JSON.stringify(result.document, null, 2));
   }
 
@@ -688,6 +757,7 @@ function downloadTemplate(version) {
 }
 
 function clearSingle() {
+  byId("single-ingest-mode").value = "SIMPLE";
   byId("single-description").value = "";
   byId("single-document_created").value = "";
 
@@ -699,6 +769,10 @@ function clearSingle() {
 
     if (fieldId === "program_type") {
       el.value = "MOVIE";
+    } else if (el instanceof HTMLSelectElement && el.multiple) {
+      [...el.options].forEach((option) => {
+        option.selected = false;
+      });
     } else {
       el.value = "";
     }
@@ -722,7 +796,7 @@ function downloadOutput() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "axinom-ingest.json";
+  link.download = `${state.currentDownloadName || "axinom-ingest"}.json`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -731,15 +805,43 @@ function downloadOutput() {
 
 function renderDataList(listId, values) {
   const list = byId(listId);
-  if (!list || !Array.isArray(values) || !values.length) {
+  if (!list) {
     return;
   }
 
   list.innerHTML = "";
+  if (!Array.isArray(values) || !values.length) {
+    return;
+  }
+
   values.forEach((value) => {
     const option = document.createElement("option");
     option.value = value;
     list.appendChild(option);
+  });
+}
+
+function renderSelectOptions(selectId, values) {
+  const select = byId(selectId);
+  if (!select) {
+    return;
+  }
+
+  const current = new Set(
+    [...select.selectedOptions]
+      .map((option) => normalizeString(option.value))
+      .filter(Boolean),
+  );
+
+  select.innerHTML = "";
+  (values || []).forEach((value) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    if (current.has(value)) {
+      option.selected = true;
+    }
+    select.appendChild(option);
   });
 }
 
@@ -748,13 +850,20 @@ async function fetchConfig() {
   const configPayload = await configResponse.json();
   state.requiredFields = configPayload.required_fields || {};
   state.programTypes = configPayload.program_types || state.programTypes;
+  if (configPayload.app_release_label) {
+    const releaseEl = byId("app-release");
+    if (releaseEl) {
+      releaseEl.textContent = configPayload.app_release_label;
+    }
+  }
 
   const picklistResponse = await fetch("/api/picklists");
   const picklistPayload = await picklistResponse.json();
 
   renderDataList("video-profile-list", picklistPayload.video_profiles || []);
   renderDataList("country-code-list", picklistPayload.common_country_codes || []);
-  renderDataList("language-tag-list", picklistPayload.common_language_tags || []);
+  renderSelectOptions("field-production_countries", picklistPayload.common_country_codes || []);
+  renderSelectOptions("field-license_countries", picklistPayload.common_country_codes || []);
   refreshDirectProgramTypeOptions();
 
   updateRequiredHint();
@@ -769,6 +878,10 @@ function bindEvents() {
   byId("theme-toggle").addEventListener("click", toggleTheme);
 
   byId("field-program_type").addEventListener("change", () => {
+    updateRequiredHint();
+    updateVisibleFields();
+  });
+  byId("single-ingest-mode").addEventListener("change", () => {
     updateRequiredHint();
     updateVisibleFields();
   });
@@ -800,6 +913,7 @@ async function init() {
   buildDirectTable();
   startHeartbeat();
   await fetchConfig();
+  setCurrentDownloadName(byId("single-name").value || "Axinom Ingest");
   renderJson(state.currentJson);
 }
 

@@ -47,7 +47,9 @@ CONFIG_PATH = _resolve_existing_path(
 def _resolve_template(filename: str) -> Path:
     return _resolve_existing_path(
         WORKSPACE_DIR / filename,
+        WORKSPACE_DIR / "docs" / "reference" / filename,
         BASE_DIR.parent / filename,
+        BASE_DIR.parent / "docs" / "reference" / filename,
         BASE_DIR / filename,
         MEIPASS_DIR / "templates" / filename,
         MEIPASS_DIR / filename,
@@ -57,8 +59,11 @@ TEMPLATE_FILES = {
     "v1_0_0": _resolve_template("axinom_ingest_template_v1_0_0.xlsx"),
     "v1_1_0": _resolve_template("axinom_ingest_template_v1_1_0.xlsx"),
     "v1_2_0": _resolve_template("axinom_ingest_template_v1_2_0.xlsx"),
-    "latest": _resolve_template("axinom_ingest_template_v1_2_0.xlsx"),
+    "v1_3_0": _resolve_template("axinom_ingest_template_v1_3_0.xlsx"),
+    "latest": _resolve_template("axinom_ingest_template_v1_3_0.xlsx"),
 }
+
+APP_RELEASE_LABEL = "v1.3.0 (2026-03-10)"
 
 
 class AppRequestHandler(SimpleHTTPRequestHandler):
@@ -105,7 +110,12 @@ class AppRequestHandler(SimpleHTTPRequestHandler):
                 HTTPStatus.OK,
                 {
                     "ok": True,
-                    "video_profiles": ["DEFAULT", "nDRM (HLS)", "DRM (DASH & HLS)"],
+                    "video_profiles": [
+                        "nDRM (HLS-Only) HD",
+                        "DRM (HLS+Dash) HD",
+                        "nDRM (HLS-Only) SD",
+                        "DRM (HLS+Dash) SD",
+                    ],
                     "image_types": ["COVER", "TEASER"],
                     "common_country_codes": ["US", "CA", "GB", "DE", "FR", "AU", "ES", "IT", "SE", "NL"],
                     "common_language_tags": [
@@ -127,6 +137,7 @@ class AppRequestHandler(SimpleHTTPRequestHandler):
                 "ok": True,
                 "program_types": self.converter.supported_program_types(),
                 "required_fields": self.converter.required_fields_by_program_type(),
+                "app_release_label": APP_RELEASE_LABEL,
             }
             self._send_json(HTTPStatus.OK, payload)
             return
