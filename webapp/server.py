@@ -408,11 +408,25 @@ def run(host: str = "127.0.0.1", port: int = 8080) -> None:
         server.server_close()
 
 
+def _read_bind_host() -> str:
+    for env_name in ("AXINOM_HELPER_HOST", "HOST"):
+        value = (os.environ.get(env_name) or "").strip()
+        if value:
+            return value
+    return "0.0.0.0"
+
+
+def _read_bind_port() -> int:
+    for env_name in ("AXINOM_HELPER_PORT", "PORT", "WEBSITES_PORT", "SERVER_PORT"):
+        raw_value = (os.environ.get(env_name) or "").strip()
+        if not raw_value:
+            continue
+        try:
+            return int(raw_value)
+        except ValueError:
+            continue
+    return 8080
+
+
 if __name__ == "__main__":
-    host = os.environ.get("AXINOM_HELPER_HOST", "127.0.0.1")
-    port_raw = os.environ.get("AXINOM_HELPER_PORT", "8080")
-    try:
-        port = int(port_raw)
-    except ValueError:
-        port = 8080
-    run(host=host, port=port)
+    run(host=_read_bind_host(), port=_read_bind_port())
