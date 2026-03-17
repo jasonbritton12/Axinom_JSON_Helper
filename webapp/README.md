@@ -29,6 +29,8 @@ If `8080` is in use:
 AXINOM_HELPER_PORT=8090 python3 webapp/server.py
 ```
 
+Hosted environments can provide `PORT`, `WEBSITES_PORT`, or `SERVER_PORT`; the app now honors those automatically and binds to `0.0.0.0` when launched directly.
+
 ## Program Types
 
 Rules live in `/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/webapp/program_types.json`.
@@ -86,3 +88,18 @@ Install dependency for that script with:
 ```bash
 python3 -m pip install -r /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/TemplateGenerator_PythonScript/requirements.txt
 ```
+
+## Azure App Service
+
+Repository-side deployment scaffolding lives here:
+
+- `/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/.github/workflows/deploy-azure-webapp.yml`
+- `/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/startup.sh`
+- `/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/deploy/azure/README.md`
+
+The remaining setup is Azure-side:
+
+- create the Linux App Service
+- set startup command to `bash startup.sh`
+- add GitHub repo variable `AZURE_WEBAPP_NAME`
+- add GitHub repo secret `AZURE_WEBAPP_PUBLISH_PROFILE`
