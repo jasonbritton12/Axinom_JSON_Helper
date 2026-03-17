@@ -21,6 +21,21 @@ bash startup.sh
 
 4. Download the web app publish profile from the Azure portal.
 
+## Optional Helper Scripts In This Repo
+
+- `deploy/azure/provision_app_service.sh`
+  - Creates the resource group, Linux App Service plan, web app, startup command, and `SCM_DO_BUILD_DURING_DEPLOYMENT` setting.
+- `deploy/azure/set_github_deploy_values.sh`
+  - Stores the required GitHub repository variable and secret using GitHub CLI.
+
+Example:
+
+```bash
+cd /Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates
+./deploy/azure/provision_app_service.sh <RESOURCE_GROUP> <LOCATION> <PLAN_NAME> <APP_NAME> B1
+./deploy/azure/set_github_deploy_values.sh <APP_NAME> <PATH_TO_PUBLISH_PROFILE> jasonbritton12/JSON_Ingest_Templates
+```
+
 ## What You Need To Add In GitHub
 
 In the GitHub repository settings:
@@ -41,6 +56,15 @@ az webapp config set \
   --resource-group <RESOURCE_GROUP> \
   --name <APP_NAME> \
   --startup-file "bash startup.sh"
+```
+
+Enable build automation for the deployment package:
+
+```bash
+az webapp config appsettings set \
+  --resource-group <RESOURCE_GROUP> \
+  --name <APP_NAME> \
+  --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true
 ```
 
 ## Expected URL
