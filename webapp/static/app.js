@@ -1,6 +1,7 @@
 const state = {
   requiredFields: {},
-  programTypes: ["MOVIE", "TVSHOW", "SEASON", "EPISODE"],
+  parentTypeOptions: {},
+  programTypes: ["MOVIE", "TVSHOW", "SEASON", "EPISODE", "TRAILER", "EXTRA"],
   currentJson: '{\n  "name": "Axinom Ingest",\n  "items": []\n}',
   currentDownloadName: "axinom-ingest",
   theme: "dark",
@@ -21,6 +22,7 @@ const singleFieldIds = [
   "released",
   "studio",
   "index",
+  "parent_type",
   "parent_external_id",
   "genres",
   "tags",
@@ -120,6 +122,50 @@ const FULL_FIELD_VISIBILITY = {
     "cover_image",
     "teaser_image",
   ]),
+  TRAILER: new Set([
+    "title",
+    "original_title",
+    "description",
+    "synopsis",
+    "released",
+    "studio",
+    "parent_type",
+    "parent_external_id",
+    "genres",
+    "tags",
+    "cast",
+    "production_countries",
+    "license_start",
+    "license_end",
+    "license_countries",
+    "video_source",
+    "video_profile",
+    "cover_image",
+    "teaser_image",
+  ]),
+  EXTRA: new Set([
+    "title",
+    "original_title",
+    "description",
+    "synopsis",
+    "released",
+    "studio",
+    "parent_type",
+    "parent_external_id",
+    "genres",
+    "tags",
+    "cast",
+    "production_countries",
+    "license_start",
+    "license_end",
+    "license_countries",
+    "video_source",
+    "video_profile",
+    "trailer_source",
+    "trailer_profile",
+    "cover_image",
+    "teaser_image",
+  ]),
 };
 
 const SIMPLE_FIELD_VISIBILITY = {
@@ -127,9 +173,11 @@ const SIMPLE_FIELD_VISIBILITY = {
   TVSHOW: new Set(["title"]),
   SEASON: new Set(["index", "parent_external_id"]),
   EPISODE: new Set(["title", "index", "parent_external_id", "video_source", "video_profile"]),
+  TRAILER: new Set(["title", "parent_type", "parent_external_id", "video_source", "video_profile"]),
+  EXTRA: new Set(["title", "parent_type", "parent_external_id", "video_source", "video_profile"]),
 };
 
-const SIMPLE_VIDEO_REQUIRED_TYPES = new Set(["MOVIE", "EPISODE"]);
+const SIMPLE_VIDEO_REQUIRED_TYPES = new Set(["MOVIE", "EPISODE", "TRAILER", "EXTRA"]);
 
 const DIRECT_COLUMNS = [
   "Asset Type",
@@ -141,6 +189,7 @@ const DIRECT_COLUMNS = [
   "Released Date",
   "Studio",
   "Season/Ep Number",
+  "Parent Type",
   "Parent External ID",
   "Genres",
   "Tags",
@@ -339,6 +388,10 @@ function currentSingleIngestMode() {
   return (byId("single-ingest-mode")?.value || "SIMPLE").toUpperCase();
 }
 
+function allowedParentTypesFor(programType) {
+  return state.parentTypeOptions[programType] || [];
+}
+
 function requiredFieldsForSingle(programType, ingestMode) {
   const required = new Set([...(state.requiredFields[programType] || []), "program_type"]);
   if (ingestMode === "SIMPLE" && SIMPLE_VIDEO_REQUIRED_TYPES.has(programType)) {
@@ -372,6 +425,38 @@ function updateIndexFieldLabel(programType) {
   labelNode.textContent = "Index";
 }
 
+function populateSingleSelect(select, values, currentValue = "") {
+  if (!select) {
+    return;
+  }
+
+  const safeCurrent = normalizeString(currentValue || select.value);
+  select.innerHTML = "";
+
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = "";
+  select.appendChild(blank);
+
+  (values || []).forEach((value) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    select.appendChild(option);
+  });
+
+  if ([...select.options].some((option) => option.value === safeCurrent)) {
+    select.value = safeCurrent;
+  } else {
+    select.value = "";
+  }
+}
+
+function updateSingleParentTypeOptions() {
+  const programType = byId("field-program_type").value;
+  populateSingleSelect(byId("field-parent_type"), allowedParentTypesFor(programType));
+}
+
 function updateRequiredHint() {
   const programType = byId("field-program_type").value;
   updateIndexFieldLabel(programType);
@@ -399,6 +484,7 @@ function updateRequiredFieldStyles() {
 function updateVisibleFields() {
   const programType = byId("field-program_type").value;
   updateIndexFieldLabel(programType);
+  updateSingleParentTypeOptions();
   const ingestMode = currentSingleIngestMode();
   const visibilityMap = ingestMode === "FULL" ? FULL_FIELD_VISIBILITY : SIMPLE_FIELD_VISIBILITY;
   const visible = visibilityMap[programType] || visibilityMap.MOVIE;
@@ -553,7 +639,11 @@ async function convertBulk() {
 
 function directInputConfig(columnName) {
   if (columnName === "Asset Type") {
-    return { kind: "select" };
+    return { kind: "program-type-select" };
+  }
+
+  if (columnName === "Parent Type") {
+    return { kind: "parent-type-select" };
   }
 
   if (columnName === "Released Date") {
@@ -582,21 +672,15 @@ function directInputConfig(columnName) {
 function createCellInput(columnName, initialValue = "") {
   const config = directInputConfig(columnName);
 
-  if (config.kind === "select") {
+  if (config.kind === "program-type-select") {
     const select = document.createElement("select");
-    const blank = document.createElement("option");
-    blank.value = "";
-    blank.textContent = "";
-    select.appendChild(blank);
+    populateSingleSelect(select, state.programTypes, initialValue);
+    return select;
+  }
 
-    state.programTypes.forEach((type) => {
-      const option = document.createElement("option");
-      option.value = type;
-      option.textContent = type;
-      select.appendChild(option);
-    });
-
-    select.value = initialValue || "";
+  if (config.kind === "parent-type-select") {
+    const select = document.createElement("select");
+    populateSingleSelect(select, [], initialValue);
     return select;
   }
 
@@ -615,27 +699,32 @@ function createCellInput(columnName, initialValue = "") {
   return input;
 }
 
+function directColumnKey(columnName) {
+  return columnName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
+
+function directRowInput(row, columnName) {
+  return row.querySelector(`[data-column-key="${directColumnKey(columnName)}"]`);
+}
+
+function updateDirectParentTypeOptions(row, preferredValue = "") {
+  const assetTypeInput = directRowInput(row, "Asset Type");
+  const parentTypeInput = directRowInput(row, "Parent Type");
+  if (!assetTypeInput || !parentTypeInput) {
+    return;
+  }
+
+  populateSingleSelect(parentTypeInput, allowedParentTypesFor(assetTypeInput.value), preferredValue || parentTypeInput.value);
+}
+
 function refreshDirectProgramTypeOptions() {
-  const selects = byId("direct-table").querySelectorAll("tbody tr td select");
-  selects.forEach((select) => {
-    const currentValue = select.value;
-    select.innerHTML = "";
-
-    const blank = document.createElement("option");
-    blank.value = "";
-    blank.textContent = "";
-    select.appendChild(blank);
-
-    state.programTypes.forEach((type) => {
-      const option = document.createElement("option");
-      option.value = type;
-      option.textContent = type;
-      select.appendChild(option);
-    });
-
-    if (state.programTypes.includes(currentValue)) {
-      select.value = currentValue;
+  const rows = byId("direct-table").querySelectorAll("tbody tr");
+  rows.forEach((row) => {
+    const assetTypeInput = directRowInput(row, "Asset Type");
+    if (assetTypeInput) {
+      populateSingleSelect(assetTypeInput, state.programTypes, assetTypeInput.value);
     }
+    updateDirectParentTypeOptions(row);
   });
 }
 
@@ -662,11 +751,18 @@ function appendDirectRow(initialValues = {}) {
   DIRECT_COLUMNS.forEach((column) => {
     const cell = document.createElement("td");
     const input = createCellInput(column, initialValues[column] || "");
+    input.dataset.columnKey = directColumnKey(column);
+    if (column === "Asset Type") {
+      input.addEventListener("change", () => {
+        updateDirectParentTypeOptions(row);
+      });
+    }
     cell.appendChild(input);
     row.appendChild(cell);
   });
 
   tbody.appendChild(row);
+  updateDirectParentTypeOptions(row, initialValues["Parent Type"] || "");
   updateDirectRowNumbers();
 }
 
@@ -870,6 +966,7 @@ async function fetchConfig() {
   const configResponse = await fetch("/api/config");
   const configPayload = await configResponse.json();
   state.requiredFields = configPayload.required_fields || {};
+  state.parentTypeOptions = configPayload.allowed_parent_types || {};
   state.programTypes = configPayload.program_types || state.programTypes;
   if (configPayload.app_release_label) {
     const releaseEl = byId("app-release");

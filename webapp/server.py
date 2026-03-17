@@ -60,10 +60,11 @@ TEMPLATE_FILES = {
     "v1_1_0": _resolve_template("axinom_ingest_template_v1_1_0.xlsx"),
     "v1_2_0": _resolve_template("axinom_ingest_template_v1_2_0.xlsx"),
     "v1_3_0": _resolve_template("axinom_ingest_template_v1_3_0.xlsx"),
-    "latest": _resolve_template("axinom_ingest_template_v1_3_0.xlsx"),
+    "v1_4_0": _resolve_template("axinom_ingest_template_v1_4_0.xlsx"),
+    "latest": _resolve_template("axinom_ingest_template_v1_4_0.xlsx"),
 }
 
-APP_RELEASE_LABEL = "v1.3.0 (2026-03-10)"
+APP_RELEASE_LABEL = "v1.4.0 (2026-03-17)"
 
 
 class AppRequestHandler(SimpleHTTPRequestHandler):
@@ -137,6 +138,7 @@ class AppRequestHandler(SimpleHTTPRequestHandler):
                 "ok": True,
                 "program_types": self.converter.supported_program_types(),
                 "required_fields": self.converter.required_fields_by_program_type(),
+                "allowed_parent_types": self.converter.allowed_parent_types_by_program_type(),
                 "app_release_label": APP_RELEASE_LABEL,
             }
             self._send_json(HTTPStatus.OK, payload)

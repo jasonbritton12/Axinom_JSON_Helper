@@ -29,6 +29,7 @@ HEADER_TO_FIELD = {
     "seasonepnumber": "index",
     "seasonnumber": "season_index",
     "episodenumber": "episode_index",
+    "parenttype": "parent_type",
     "parentexternalid": "parent_external_id",
     "genres": "genres",
     "tags": "tags",
@@ -89,11 +90,17 @@ class IngestConverter:
         self.config = json.loads(self.config_path.read_text(encoding="utf-8"))
 
     def supported_program_types(self) -> List[str]:
-        return sorted(self.config["program_types"].keys())
+        return list(self.config["program_types"].keys())
 
     def required_fields_by_program_type(self) -> Dict[str, List[str]]:
         return {
             key: value.get("required", [])
+            for key, value in self.config["program_types"].items()
+        }
+
+    def allowed_parent_types_by_program_type(self) -> Dict[str, List[str]]:
+        return {
+            key: value.get("allowed_parent_types", [])
             for key, value in self.config["program_types"].items()
         }
 
@@ -285,6 +292,8 @@ class IngestConverter:
 
         ingest_type = type_config["ingest_type"]
         external_id = _clean_text(fields.get("external_id"))
+        parent_type = self.normalize_program_type(fields.get("parent_type"))
+        allowed_parent_types = type_config.get("allowed_parent_types") or []
         data = _build_data(fields)
 
         localized_present = any(
@@ -296,6 +305,8 @@ class IngestConverter:
 
         if ingest_type in {"TVSHOW", "SEASON"}:
             data.pop("main_video", None)
+        if ingest_type == "TRAILER":
+            data.pop("trailers", None)
 
         main_video = data.get("main_video") or {}
         if "profile" in main_video and "source" not in main_video:
@@ -304,6 +315,17 @@ class IngestConverter:
         for trailer in data.get("trailers") or []:
             if "profile" in trailer and "source" not in trailer:
                 errors.append("Field 'trailers[].source' is required when 'trailers[].profile' is set")
+
+        if parent_type and parent_type not in self.supported_program_types():
+            errors.append(
+                "Field 'parent_type' must be one of: "
+                f"{', '.join(self.supported_program_types())}"
+            )
+        elif allowed_parent_types and parent_type and parent_type not in allowed_parent_types:
+            errors.append(
+                "Field 'parent_type' must be one of: "
+                f"{', '.join(allowed_parent_types)}"
+            )
 
         if "parent_external_id" not in data:
             derived_parent = _derive_parent_external_id(external_id, ingest_type)
@@ -320,6 +342,11 @@ class IngestConverter:
             if required_field == "index":
                 if "index" not in data:
                     errors.append("Missing required field: index")
+                continue
+
+            if required_field == "parent_type":
+                if not parent_type:
+                    errors.append("Missing required field: parent_type")
                 continue
 
             value = data.get(required_field)
@@ -398,6 +425,7 @@ def _sheet_error_field_candidates(field: str) -> List[str]:
         "external_id": ["externalid", "titlealternateid", "guid", "series", "id"],
         "title": ["title"],
         "index": ["seasonepnumber", "episodenumber", "seasonnumber"],
+        "parent_type": ["parenttype"],
         "parent_external_id": ["parentexternalid"],
         "language_tag": ["languagetag", "language"],
         "video_source": ["videosource"],
@@ -430,6 +458,8 @@ def _type_noun(normalized_program_type: str, plural: bool = True) -> str:
         "TVSHOW": "TV show",
         "SEASON": "Season",
         "EPISODE": "Episode",
+        "TRAILER": "Trailer",
+        "EXTRA": "Extra",
     }
     base = singular.get(normalized_program_type, "Item")
     if not plural:
@@ -457,6 +487,8 @@ def _format_sheet_error_message(
             message = f"{_type_noun(normalized_program_type)} must have a title"
         elif field == "index":
             message = f"{_type_noun(normalized_program_type)} must have a number"
+        elif field == "parent_type":
+            message = f"{_type_noun(normalized_program_type)} must have a parent type"
         elif field == "parent_external_id":
             message = f"{_type_noun(normalized_program_type)} must have a parent external ID"
         else:
@@ -473,6 +505,9 @@ def _format_sheet_error_message(
     elif error == "Field 'trailers[].source' is required when 'trailers[].profile' is set":
         field = "trailer_source"
         message = "Trailer Source is required when Trailer Profile is set"
+    elif error.startswith("Field 'parent_type' must be one of: "):
+        field = "parent_type"
+        message = error.replace("Field 'parent_type' ", "Parent Type ")
     elif error.startswith("Unsupported program type "):
         field = "program_type"
 

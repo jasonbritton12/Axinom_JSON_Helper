@@ -16,7 +16,7 @@
           </button>
         </div>
         <p>Single-title form, bulk Excel conversion, and direct spreadsheet-style entry.</p>
-        <p class="release-meta">Release: <span id="app-release">v1.3.0 (2026-03-10)</span></p>
+        <p class="release-meta">Release: <span id="app-release">v1.4.0 (2026-03-17)</span></p>
       </section>
 
       <section class="card tabs-card">
@@ -28,7 +28,7 @@
 
         <div id="tab-single" class="tab-panel is-active" role="tabpanel">
           <h2>Single Item Builder</h2>
-          <p class="helper">`Simple` mode shows minimum ingest fields. Use `Full` mode for all fields. Trailers are attached to the parent item using `Trailer Source/Profile`.</p>
+          <p class="helper">`Simple` mode shows minimum ingest fields. `TRAILER` and `EXTRA` are first-class types in this schema and require a parent external ID. `TRAILER` can attach to MOVIE, TVSHOW, SEASON, EPISODE, or EXTRA. `EXTRA` can attach to MOVIE or TVSHOW.</p>
 
           <div class="grid three">
             <label>
@@ -53,6 +53,8 @@
                 <option>TVSHOW</option>
                 <option>SEASON</option>
                 <option>EPISODE</option>
+                <option>TRAILER</option>
+                <option>EXTRA</option>
               </select>
             </label>
             <label class="always-required">
@@ -99,9 +101,13 @@
               Index
               <input id="field-index" type="number" min="1" />
             </label>
+            <label data-field="parent_type">
+              Parent Type
+              <select id="field-parent_type"></select>
+            </label>
             <label data-field="parent_external_id">
               Parent External ID
-              <input id="field-parent_external_id" type="text" placeholder="S_mandalorian_S2" />
+              <input id="field-parent_external_id" type="text" placeholder="Parent asset external ID" />
             </label>
             <label data-field="genres">
               Genres (comma-separated)
@@ -145,7 +151,7 @@
             </label>
             <label data-field="trailer_profile">
               Trailer Profile
-              <input id="field-trailer_profile" type="text" list="video-profile-list" placeholder="DEFAULT" />
+              <input id="field-trailer_profile" type="text" list="video-profile-list" placeholder="nDRM (HLS-Only) HD" />
             </label>
             <label data-field="cover_image">
               Cover Image
@@ -188,7 +194,8 @@
             <label>
               Template Version
               <select id="bulk-template-version">
-                <option value="latest">latest (v1.3.0)</option>
+                <option value="latest">latest (v1.4.0)</option>
+                <option value="v1_4_0">v1.4.0</option>
                 <option value="v1_3_0">v1.3.0</option>
                 <option value="v1_2_0">v1.2.0</option>
                 <option value="v1_1_0">v1.1.0</option>

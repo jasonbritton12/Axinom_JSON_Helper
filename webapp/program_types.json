@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0",
-  "schema_note": "Based on ingest-validation-schema-59b6e6fb34b1e38d3451d80b7404ee2a.json",
+  "version": "1.4.0",
+  "schema_note": "Updated against Axinom_Prod_Media_FullSchema_2026-03-17.json",
   "program_types": {
     "MOVIE": {
       "ingest_type": "MOVIE",
@@ -15,11 +15,25 @@
     "SEASON": {
       "ingest_type": "SEASON",
       "required": ["external_id", "index", "parent_external_id"],
+      "allowed_parent_types": ["TVSHOW"],
       "notes": []
     },
     "EPISODE": {
       "ingest_type": "EPISODE",
       "required": ["external_id", "title", "index", "parent_external_id"],
+      "allowed_parent_types": ["SEASON"],
+      "notes": []
+    },
+    "TRAILER": {
+      "ingest_type": "TRAILER",
+      "required": ["external_id", "title", "parent_type", "parent_external_id"],
+      "allowed_parent_types": ["MOVIE", "TVSHOW", "SEASON", "EPISODE", "EXTRA"],
+      "notes": []
+    },
+    "EXTRA": {
+      "ingest_type": "EXTRA",
+      "required": ["external_id", "title", "parent_type", "parent_external_id"],
+      "allowed_parent_types": ["MOVIE", "TVSHOW"],
       "notes": []
     }
   },
@@ -28,14 +42,16 @@
     "TVSHOW": "TVSHOW",
     "SEASON": "SEASON",
     "EPISODE": "EPISODE",
-    "TRAILER": "MOVIE",
-    "EXTRA": "MOVIE",
+    "TRAILER": "TRAILER",
+    "TRAILERS": "TRAILER",
+    "EXTRA": "EXTRA",
+    "EXTRAS": "EXTRA",
     "SHOW": "TVSHOW",
     "TV SHOW": "TVSHOW",
     "SERIES": "TVSHOW",
     "TVSERIES": "TVSHOW",
     "TVSEASON": "SEASON",
     "TVEPISODE": "EPISODE",
-    "PREVIEW": "MOVIE"
+    "PREVIEW": "TRAILER"
   }
 }

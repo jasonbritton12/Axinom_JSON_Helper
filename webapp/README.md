@@ -8,7 +8,7 @@ Standalone local web app for creating Axinom ingest JSON.
 - `Single Title` includes ingest mode selection: `Simple (Minimum)` or `Full`.
 - `Bulk Excel` tab: upload `.xlsx` and convert rows to a single ingest JSON document.
 - `Direct Sheet` tab: spreadsheet-like in-browser entry and conversion.
-- `Template Download`: download `axinom_ingest_template_v1_3_0.xlsx` (latest), `v1_2_0`, `v1_1_0`, or `v1_0_0`.
+- `Template Download`: download `axinom_ingest_template_v1_4_0.xlsx` (latest), `v1_3_0`, `v1_2_0`, `v1_1_0`, or `v1_0_0`.
 - Date pickers (`date`, `datetime-local`) with manual entry support.
 - Multi-select country pickers and profile picklists in UI.
 - Dark theme is default, with a persistent light/dark toggle.
@@ -33,8 +33,9 @@ AXINOM_HELPER_PORT=8090 python3 webapp/server.py
 
 Rules live in `/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/webapp/program_types.json`.
 
-- Supported types: `MOVIE`, `TVSHOW`, `SEASON`, `EPISODE`
-- Legacy spreadsheet values such as `TRAILER`, `EXTRA`, and `PREVIEW` are auto-mapped to `MOVIE` during conversion for compatibility.
+- Supported types: `MOVIE`, `TVSHOW`, `SEASON`, `EPISODE`, `TRAILER`, `EXTRA`
+- Legacy spreadsheet aliases such as `TRAILERS`, `EXTRAS`, and `PREVIEW` are normalized during conversion for compatibility.
+- `Parent Type` is a helper validation field for parent-linked records. It is required for `TRAILER` and `EXTRA`, and supported in the bulk/direct template for clearer relationship entry.
 
 ## Supported Extra Fields
 
@@ -48,7 +49,7 @@ Rules live in `/Users/jasonbritton/Desktop/AXINOM_SETUP/JSON_Ingest_Templates/we
 - `GET /api/config`
 - `GET /api/picklists`
 - `GET /api/runtime`
-- `GET /api/template-download?version=latest|v1_3_0|v1_2_0|v1_1_0|v1_0_0`
+- `GET /api/template-download?version=latest|v1_4_0|v1_3_0|v1_2_0|v1_1_0|v1_0_0`
 - `POST /api/single`
 - `POST /api/convert-excel`
 - `POST /api/convert-rows`
