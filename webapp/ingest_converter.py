@@ -89,6 +89,12 @@ class IngestConverter:
         self.config_path = Path(config_path)
         self.config = json.loads(self.config_path.read_text(encoding="utf-8"))
 
+    def helper_version(self) -> str:
+        version = _clean_text(self.config.get("version"))
+        if not version:
+            return "unknown"
+        return version if version.startswith("v") else f"v{version}"
+
     def supported_program_types(self) -> List[str]:
         return list(self.config["program_types"].keys())
 
@@ -113,9 +119,8 @@ class IngestConverter:
         return aliases.get(raw, raw)
 
     def form_payload_to_document(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        document_name = _clean_text(payload.get("name")) or "Axinom Ingest"
+        document_name = _clean_text(payload.get("name"))
         document_description = _clean_text(payload.get("description"))
-        document_created = _clean_text(payload.get("document_created"))
         fields = payload.get("fields") or {}
 
         build_result = self._build_item(fields)
@@ -126,17 +131,20 @@ class IngestConverter:
                 "warnings": build_result.warnings,
             }
 
-        document: Dict[str, Any] = {
-            "name": document_name,
-            "items": [build_result.item],
-        }
+        suggested_name, suggested_description = _suggest_single_document_metadata(
+            fields,
+            normalized_type=self.normalize_program_type(fields.get("program_type")),
+        )
 
-        if document_description:
-            document["description"] = document_description
+        document: Dict[str, Any] = {"name": document_name or suggested_name or "Axinom Ingest"}
 
-        normalized_created = _normalize_document_created(document_created)
-        if normalized_created:
-            document["document_created"] = normalized_created
+        effective_description = document_description or suggested_description
+        if effective_description:
+            document["description"] = effective_description
+
+        document["items"] = [build_result.item]
+        document["document_created"] = _current_document_created()
+        document["helper_version"] = self.helper_version()
 
         return {
             "ok": True,
@@ -209,14 +217,14 @@ class IngestConverter:
                 }
             )
 
-        document = {"name": document_name, "items": items} if items and not row_errors else None
+        document = {"name": _clean_text(document_name) or "Axinom Ingest"} if items and not row_errors else None
         if document:
             description = _clean_text(document_description)
-            created = _normalize_document_created(document_created)
             if description:
                 document["description"] = description
-            if created:
-                document["document_created"] = created
+            document["items"] = items
+            document["document_created"] = _current_document_created()
+            document["helper_version"] = self.helper_version()
 
         return {
             "ok": overall_ok,
@@ -546,6 +554,144 @@ def _normalize_document_created(value: Any) -> str:
         return ""
 
     return _parse_datetime_to_utc_string(text, "start") or text
+
+
+def _current_document_created() -> str:
+    return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000+00:00")
+
+
+def _pad_index(value: Any) -> str:
+    text = _clean_text(value)
+    if not text:
+        return ""
+    try:
+        return f"{int(text):02d}"
+    except ValueError:
+        return text
+
+
+def _extract_season_index(value: Any) -> str:
+    text = _clean_text(value)
+    if not text:
+        return ""
+
+    matches = re.findall(r"(?:^|[_-])S(\d+)(?=$|[_-])", text, flags=re.IGNORECASE)
+    if matches:
+        return _pad_index(matches[-1])
+
+    fallback = re.search(r"season\D*(\d+)", text, flags=re.IGNORECASE)
+    if fallback:
+        return _pad_index(fallback.group(1))
+
+    return ""
+
+
+def _strip_known_id_prefix(value: str) -> str:
+    return re.sub(r"^[A-Z]_", "", value)
+
+
+def _strip_episode_suffix(value: str) -> str:
+    return re.sub(r"([_-])E\d+$", "", value, flags=re.IGNORECASE)
+
+
+def _strip_season_suffix(value: str) -> str:
+    return re.sub(r"([_-])S\d+(?:[_-]E\d+)?$", "", value, flags=re.IGNORECASE)
+
+
+def _humanize_identifier(value: Any) -> str:
+    text = _clean_text(value)
+    if not text:
+        return ""
+
+    text = _strip_known_id_prefix(text)
+    text = _strip_episode_suffix(text)
+    text = _strip_season_suffix(text)
+    tokens = [part for part in re.split(r"[_-]+", text) if part]
+    if not tokens:
+        return ""
+
+    words = []
+    for token in tokens:
+        if token.isdigit():
+            words.append(token)
+        elif token.isupper() and len(token) <= 4:
+            words.append(token)
+        else:
+            words.append(token.capitalize())
+    return " ".join(words)
+
+
+def _episode_series_label(fields: Dict[str, Any]) -> str:
+    parent_external_id = _clean_text(fields.get("parent_external_id"))
+    if parent_external_id:
+        series_external_id = _strip_season_suffix(parent_external_id)
+        return _humanize_identifier(series_external_id or parent_external_id)
+    return ""
+
+
+def _document_subject(fields: Dict[str, Any], normalized_type: str) -> str:
+    title = _clean_text(fields.get("title"))
+    external_id = _clean_text(fields.get("external_id"))
+    parent_external_id = _clean_text(fields.get("parent_external_id"))
+
+    if normalized_type == "MOVIE":
+        return title or _humanize_identifier(external_id) or "Movie"
+
+    if normalized_type == "TVSHOW":
+        return title or _humanize_identifier(external_id) or "Series"
+
+    if normalized_type == "SEASON":
+        return _humanize_identifier(parent_external_id) or title or _humanize_identifier(external_id) or "Series"
+
+    if normalized_type == "EPISODE":
+        return _episode_series_label(fields) or title or _humanize_identifier(parent_external_id) or _humanize_identifier(external_id) or "Series"
+
+    if normalized_type in {"TRAILER", "EXTRA"}:
+        return title or _humanize_identifier(parent_external_id) or _humanize_identifier(external_id) or normalized_type.title()
+
+    return title or _humanize_identifier(external_id) or "Axinom Ingest"
+
+
+def _suggest_single_document_metadata(fields: Dict[str, Any], *, normalized_type: str) -> Tuple[str, str]:
+    subject = _document_subject(fields, normalized_type)
+    index = _pad_index(fields.get("index"))
+    season_index = _extract_season_index(fields.get("parent_external_id"))
+
+    if normalized_type == "MOVIE":
+        name = f"{subject} - Movie Ingest"
+        description = f"Single-item movie ingest for {subject}."
+        return name, description
+
+    if normalized_type == "TVSHOW":
+        name = f"{subject} - TV Show Ingest"
+        description = f"Single-item TV show ingest for {subject}."
+        return name, description
+
+    if normalized_type == "SEASON":
+        suffix = f"S{index}" if index else "Season"
+        name = f"{subject} - {suffix} Ingest"
+        description = f"Single-item season ingest for {subject}{f' season {index}' if index else ''}."
+        return name, description
+
+    if normalized_type == "EPISODE":
+        if season_index and index:
+            label = f"S{season_index} E{index}"
+            description = f"Single-item episode ingest for {subject}, season {season_index} episode {index}."
+        elif index:
+            label = f"Episode {index}"
+            description = f"Single-item episode ingest for {subject}, episode {index}."
+        else:
+            label = "Episode"
+            description = f"Single-item episode ingest for {subject}."
+        return f"{subject} - {label} Ingest", description
+
+    if normalized_type == "TRAILER":
+        return f"{subject} - Trailer Ingest", f"Single-item trailer ingest for {subject}."
+
+    if normalized_type == "EXTRA":
+        return f"{subject} - Extra Ingest", f"Single-item extra ingest for {subject}."
+
+    return f"{subject} - Ingest", f"Single-item ingest for {subject}."
 
 
 def _split_multi(value: Any, *, uppercase: bool = False) -> List[str]:

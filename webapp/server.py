@@ -55,6 +55,17 @@ def _resolve_template(filename: str) -> Path:
         MEIPASS_DIR / filename,
     )
 
+
+def _runtime_idle_timeout_seconds() -> int | None:
+    raw = (os.environ.get("AXINOM_HELPER_IDLE_TIMEOUT") or "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        return None
+    return value if value > 0 else None
+
 TEMPLATE_FILES = {
     "v1_0_0": _resolve_template("axinom_ingest_template_v1_0_0.xlsx"),
     "v1_1_0": _resolve_template("axinom_ingest_template_v1_1_0.xlsx"),
@@ -63,10 +74,11 @@ TEMPLATE_FILES = {
     "v1_4_0": _resolve_template("axinom_ingest_template_v1_4_0.xlsx"),
     "v1_5_0": _resolve_template("axinom_ingest_template_v1_5_0.xlsx"),
     "v1_5_1": _resolve_template("axinom_ingest_template_v1_5_1.xlsx"),
-    "latest": _resolve_template("axinom_ingest_template_v1_5_1.xlsx"),
+    "v1_5_2": _resolve_template("axinom_ingest_template_v1_5_2.xlsx"),
+    "latest": _resolve_template("axinom_ingest_template_v1_5_2.xlsx"),
 }
 
-APP_RELEASE_LABEL = "v1.5.1 (2026-03-26)"
+APP_RELEASE_LABEL = "v1.5.2 (2026-03-26)"
 
 
 class AppRequestHandler(SimpleHTTPRequestHandler):
@@ -142,6 +154,7 @@ class AppRequestHandler(SimpleHTTPRequestHandler):
                 "required_fields": self.converter.required_fields_by_program_type(),
                 "allowed_parent_types": self.converter.allowed_parent_types_by_program_type(),
                 "app_release_label": APP_RELEASE_LABEL,
+                "helper_version": self.converter.helper_version(),
             }
             self._send_json(HTTPStatus.OK, payload)
             return
@@ -158,6 +171,9 @@ class AppRequestHandler(SimpleHTTPRequestHandler):
                     "ok": True,
                     "mode": "desktop" if has_quit else "web",
                     "quit_supported": has_quit,
+                    "idle_timeout_seconds": _runtime_idle_timeout_seconds(),
+                    "launcher_protocol": "axinom-ingest://open",
+                    "helper_version": self.converter.helper_version(),
                 },
             )
             return

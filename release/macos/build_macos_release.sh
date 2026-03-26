@@ -87,6 +87,13 @@ TEMPLATE_V1_5_1="$(resolve_file \
   exit 1
 }
 
+TEMPLATE_V1_5_2="$(resolve_file \
+  "$ROOT_DIR/axinom_ingest_template_v1_5_2.xlsx" \
+  "$ROOT_DIR/docs/reference/axinom_ingest_template_v1_5_2.xlsx")" || {
+  echo "Missing template file: axinom_ingest_template_v1_5_2.xlsx"
+  exit 1
+}
+
 cleanup() {
   if [[ -n "${PKG_ROOT}" && -d "${PKG_ROOT}" ]]; then
     rm -rf "${PKG_ROOT}" || true
@@ -139,6 +146,7 @@ export PYINSTALLER_CONFIG_DIR="$PYI_CONFIG"
   --add-data "$TEMPLATE_V1_4:templates" \
   --add-data "$TEMPLATE_V1_5:templates" \
   --add-data "$TEMPLATE_V1_5_1:templates" \
+  --add-data "$TEMPLATE_V1_5_2:templates" \
   "$ROOT_DIR/webapp/desktop_launcher.py"
 
 APP_PATH="$PYI_DIST/$APP_NAME.app"
@@ -186,7 +194,8 @@ Install
 How it works
 - The app starts a local web server and opens your browser automatically.
 - No terminal steps are required for end users.
-- Desktop runtime auto-shuts down when browser activity stops.
+- Desktop runtime stays alive for roughly 8 hours of inactivity by default.
+- If the app shell is already open in your browser, you can refresh it and use the in-app relaunch control if the local helper has stopped.
 - You can launch it from link/protocol: axinom-ingest://open
 
 Notes

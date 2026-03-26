@@ -16,7 +16,17 @@
           </button>
         </div>
         <p>Single-title form, bulk Excel conversion, and direct spreadsheet-style entry.</p>
-        <p class="release-meta">Release: <span id="app-release">v1.5.1 (2026-03-26)</span></p>
+        <p class="release-meta">Release: <span id="app-release">v1.5.2 (2026-03-26)</span></p>
+        <div class="runtime-bar" id="runtime-bar">
+          <div class="runtime-copy">
+            <strong id="runtime-label">App Status</strong>
+            <span id="runtime-state">Checking app status...</span>
+          </div>
+          <div class="runtime-actions">
+            <button id="runtime-retry" type="button" class="secondary runtime-btn">Retry Connection</button>
+            <button id="runtime-relaunch" type="button" class="secondary runtime-btn">Relaunch Desktop App</button>
+          </div>
+        </div>
       </section>
 
       <section class="card tabs-card">
@@ -33,15 +43,17 @@
           <div class="grid three">
             <label>
               Document Name
+              <span class="field-note">Auto-filled from item metadata. You can still edit it.</span>
               <input id="single-name" type="text" value="Axinom Single Ingest" />
             </label>
             <label>
-              Document Description (optional)
+              Document Description
+              <span class="field-note">Auto-filled from item metadata. You can still edit it.</span>
               <input id="single-description" type="text" placeholder="Optional ingest batch description" />
             </label>
             <label>
-              Document Created (optional)
-              <input id="single-document_created" type="datetime-local" />
+              Document Created
+              <input id="single-document-created-display" type="text" value="Auto-stamped when JSON is generated" readonly />
             </label>
           </div>
 
@@ -181,8 +193,8 @@
               <input id="bulk-description" type="text" />
             </label>
             <label>
-              Document Created (optional)
-              <input id="bulk-document_created" type="datetime-local" />
+              Document Created
+              <input id="bulk-document-created-display" type="text" value="Auto-stamped when JSON is generated" readonly />
             </label>
           </div>
 
@@ -194,7 +206,8 @@
             <label>
               Template Version
               <select id="bulk-template-version">
-                <option value="latest">latest (v1.5.1)</option>
+                <option value="latest">latest (v1.5.2)</option>
+                <option value="v1_5_2">v1.5.2</option>
                 <option value="v1_5_1">v1.5.1</option>
                 <option value="v1_5_0">v1.5.0</option>
                 <option value="v1_4_0">v1.4.0</option>
@@ -231,8 +244,8 @@
               <input id="direct-description" type="text" />
             </label>
             <label>
-              Document Created (optional)
-              <input id="direct-document_created" type="datetime-local" />
+              Document Created
+              <input id="direct-document-created-display" type="text" value="Auto-stamped when JSON is generated" readonly />
             </label>
           </div>
 

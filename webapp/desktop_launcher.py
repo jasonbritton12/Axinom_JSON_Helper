@@ -34,8 +34,10 @@ def _read_int_env(name: str, default: int) -> int:
 
 PRIMARY_PORT = _read_int_env("AXINOM_HELPER_PORT", 8080)
 FALLBACK_PORTS = (8090, 8100)
-IDLE_TIMEOUT_SECONDS = _read_int_env("AXINOM_HELPER_IDLE_TIMEOUT", 90)
+IDLE_TIMEOUT_SECONDS = _read_int_env("AXINOM_HELPER_IDLE_TIMEOUT", 28800)
 POLL_INTERVAL_SECONDS = 0.5
+
+os.environ.setdefault("AXINOM_HELPER_IDLE_TIMEOUT", str(IDLE_TIMEOUT_SECONDS))
 
 
 def _is_port_available(host: str, port: int) -> bool:

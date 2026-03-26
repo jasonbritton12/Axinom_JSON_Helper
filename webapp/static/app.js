@@ -5,12 +5,24 @@ const state = {
   currentJson: '{\n  "name": "Axinom Ingest",\n  "items": []\n}',
   currentDownloadName: "axinom-ingest",
   theme: "dark",
+  helperVersion: "",
+  configLoaded: false,
+  singleNameDirty: false,
+  singleDescriptionDirty: false,
+  autoSyncingDocumentMetadata: false,
+  runtimeMode: "unknown",
+  runtimeConnected: null,
+  runtimeIdleTimeoutSeconds: null,
 };
 
 const THEME_STORAGE_KEY = "axinom_ingest_theme";
+const RUNTIME_MODE_STORAGE_KEY = "axinom_ingest_runtime_mode";
 const VALID_THEMES = new Set(["dark", "light"]);
 const HEARTBEAT_INTERVAL_MS = 15000;
+const RUNTIME_POLL_INTERVAL_MS = 20000;
+const DESKTOP_LAUNCH_PROTOCOL = "axinom-ingest://open";
 let heartbeatTimer = null;
+let runtimePollTimer = null;
 
 const singleFieldIds = [
   "program_type",
@@ -290,6 +302,56 @@ function stopHeartbeat() {
   }
 }
 
+function stopRuntimePolling() {
+  if (runtimePollTimer) {
+    window.clearInterval(runtimePollTimer);
+    runtimePollTimer = null;
+  }
+}
+
+async function refreshRuntimeStatus({ loadConfig = false, surfaceFailure = false } = {}) {
+  try {
+    const response = await fetch("/api/runtime", {
+      method: "GET",
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      throw new Error(`Runtime check failed with status ${response.status}`);
+    }
+
+    const payload = await response.json();
+    state.runtimeMode = normalizeString(payload.mode) || "unknown";
+    state.runtimeConnected = true;
+    state.runtimeIdleTimeoutSeconds = Number.isFinite(payload.idle_timeout_seconds)
+      ? payload.idle_timeout_seconds
+      : null;
+    rememberRuntimeMode(state.runtimeMode);
+    updateRuntimeBanner({
+      connected: true,
+      mode: state.runtimeMode,
+      idleTimeoutSeconds: state.runtimeIdleTimeoutSeconds,
+    });
+
+    if (loadConfig || !state.configLoaded) {
+      await fetchConfig();
+    }
+
+    return true;
+  } catch (error) {
+    state.runtimeConnected = false;
+    updateRuntimeBanner({
+      connected: false,
+      mode: state.runtimeMode || lastKnownRuntimeMode(),
+      idleTimeoutSeconds: state.runtimeIdleTimeoutSeconds,
+      unavailableReason: "Use Retry Connection or Relaunch Desktop App.",
+    });
+    if (surfaceFailure) {
+      setStatus(`Connection failed: ${error.message}`, "warn");
+    }
+    return false;
+  }
+}
+
 async function sendHeartbeat() {
   try {
     await fetch("/api/health", {
@@ -297,8 +359,17 @@ async function sendHeartbeat() {
       cache: "no-store",
       keepalive: true,
     });
+    if (state.runtimeConnected === false) {
+      await refreshRuntimeStatus({ loadConfig: !state.configLoaded });
+    }
   } catch (_error) {
-    // Ignore heartbeat failures; the next foreground interaction will surface issues.
+    state.runtimeConnected = false;
+    updateRuntimeBanner({
+      connected: false,
+      mode: state.runtimeMode || lastKnownRuntimeMode(),
+      idleTimeoutSeconds: state.runtimeIdleTimeoutSeconds,
+      unavailableReason: "The local helper stopped responding.",
+    });
   }
 }
 
@@ -308,6 +379,42 @@ function startHeartbeat() {
   heartbeatTimer = window.setInterval(() => {
     void sendHeartbeat();
   }, HEARTBEAT_INTERVAL_MS);
+}
+
+function startRuntimePolling() {
+  stopRuntimePolling();
+  runtimePollTimer = window.setInterval(() => {
+    if (document.visibilityState === "visible" || state.runtimeConnected === false) {
+      void refreshRuntimeStatus({ loadConfig: !state.configLoaded });
+    }
+  }, RUNTIME_POLL_INTERVAL_MS);
+}
+
+async function retryRuntimeConnection() {
+  setStatus("Checking helper connection...", "warn");
+  const connected = await refreshRuntimeStatus({ loadConfig: true, surfaceFailure: true });
+  if (connected) {
+    setStatus("Connection restored.", "ok");
+  }
+}
+
+function relaunchDesktopApp() {
+  setStatus("Launch request sent to the desktop app.", "warn");
+  window.location.href = DESKTOP_LAUNCH_PROTOCOL;
+  window.setTimeout(() => {
+    void refreshRuntimeStatus({ loadConfig: true });
+  }, 2500);
+}
+
+async function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+  try {
+    await navigator.serviceWorker.register("/service-worker.js");
+  } catch (_error) {
+    // Ignore registration errors; the app still works without offline shell support.
+  }
 }
 
 function setStatus(message, kind = "") {
@@ -331,6 +438,280 @@ function sanitizeFilenameStem(value) {
 
 function setCurrentDownloadName(value) {
   state.currentDownloadName = sanitizeFilenameStem(value);
+}
+
+function formatHelperVersion(value) {
+  const normalized = normalizeString(value);
+  if (!normalized) {
+    return "Loading...";
+  }
+  if (normalized.toLowerCase() === "loading") {
+    return "Loading...";
+  }
+  return normalized.startsWith("v") ? normalized : `v${normalized}`;
+}
+
+function rememberRuntimeMode(mode) {
+  if (!normalizeString(mode)) {
+    return;
+  }
+  try {
+    window.localStorage.setItem(RUNTIME_MODE_STORAGE_KEY, mode);
+  } catch (_error) {
+    // Ignore localStorage errors and continue in-memory only.
+  }
+}
+
+function lastKnownRuntimeMode() {
+  try {
+    return normalizeString(window.localStorage.getItem(RUNTIME_MODE_STORAGE_KEY)) || "unknown";
+  } catch (_error) {
+    return "unknown";
+  }
+}
+
+function formatDurationLabel(seconds) {
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return "";
+  }
+  if (seconds >= 3600) {
+    const hours = Math.round((seconds / 3600) * 10) / 10;
+    return `${hours}h`;
+  }
+  if (seconds >= 60) {
+    return `${Math.round(seconds / 60)}m`;
+  }
+  return `${seconds}s`;
+}
+
+function updateRuntimeBanner({ connected, mode = "unknown", idleTimeoutSeconds = null, unavailableReason = "" } = {}) {
+  const runtimeBar = byId("runtime-bar");
+  const runtimeState = byId("runtime-state");
+  const relaunchButton = byId("runtime-relaunch");
+  if (!runtimeBar || !runtimeState || !relaunchButton) {
+    return;
+  }
+
+  runtimeBar.classList.toggle("is-ok", Boolean(connected));
+  runtimeBar.classList.toggle("is-error", connected === false);
+
+  const effectiveMode = normalizeString(mode) || state.runtimeMode || lastKnownRuntimeMode();
+  const modeLabel = effectiveMode === "desktop" ? "Desktop App" : effectiveMode === "web" ? "Web App" : "Helper";
+  const idleLabel = formatDurationLabel(idleTimeoutSeconds);
+
+  if (connected) {
+    runtimeState.textContent = effectiveMode === "desktop" && idleLabel
+      ? `${modeLabel} connected. Idle shutdown after about ${idleLabel} of inactivity.`
+      : `${modeLabel} connected.`;
+  } else if (connected === false) {
+    runtimeState.textContent = unavailableReason
+      ? `${modeLabel} unavailable. ${unavailableReason}`
+      : `${modeLabel} unavailable. Retry the connection or relaunch the desktop app.`;
+  } else {
+    runtimeState.textContent = "Checking app status...";
+  }
+
+  const showRelaunch = effectiveMode === "desktop" || (effectiveMode === "unknown" && lastKnownRuntimeMode() === "desktop");
+  relaunchButton.hidden = !showRelaunch;
+}
+
+function updateDocumentMetaDisplay(prefix, createdValue = "") {
+  const createdEl = byId(`${prefix}-document-created-display`);
+  if (!createdEl) {
+    return;
+  }
+
+  const displayValue = createdValue || "Auto-stamped when JSON is generated";
+  if ("value" in createdEl) {
+    createdEl.value = displayValue;
+    return;
+  }
+
+  createdEl.textContent = displayValue;
+}
+
+function updateAllDocumentMetaDisplays(document = null) {
+  const createdValue = normalizeString(document?.document_created);
+  ["single", "bulk", "direct"].forEach((prefix) => {
+    updateDocumentMetaDisplay(prefix, createdValue);
+  });
+}
+
+function humanizeIdentifier(value) {
+  let text = normalizeString(value);
+  if (!text) {
+    return "";
+  }
+
+  text = text.replace(/^[A-Z]_/, "");
+  text = text.replace(/([_-])E\d+$/i, "");
+  text = text.replace(/([_-])S\d+(?:[_-]E\d+)?$/i, "");
+
+  const tokens = text.split(/[_-]+/).filter(Boolean);
+  if (!tokens.length) {
+    return "";
+  }
+
+  return tokens
+    .map((token) => {
+      if (/^\d+$/.test(token)) {
+        return token;
+      }
+      if (token === token.toUpperCase() && token.length <= 4) {
+        return token;
+      }
+      return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
+    })
+    .join(" ");
+}
+
+function stripSeasonSuffix(value) {
+  return normalizeString(value).replace(/([_-])S\d+(?:[_-]E\d+)?$/i, "");
+}
+
+function extractSeasonIndex(value) {
+  const text = normalizeString(value);
+  if (!text) {
+    return "";
+  }
+
+  const matches = [...text.matchAll(/(?:^|[_-])S(\d+)(?=$|[_-])/gi)];
+  if (matches.length) {
+    return padTwoDigits(matches[matches.length - 1][1]);
+  }
+
+  const fallback = text.match(/season\D*(\d+)/i);
+  return fallback ? padTwoDigits(fallback[1]) : "";
+}
+
+function padIndexLabel(value) {
+  const normalized = normalizeString(value);
+  if (!normalized) {
+    return "";
+  }
+  const parsed = Number.parseInt(normalized, 10);
+  return Number.isFinite(parsed) ? padTwoDigits(parsed) : normalized;
+}
+
+function singleDocumentSubject() {
+  const programType = byId("field-program_type").value;
+  const title = readInputValue(byId("field-title"));
+  const externalId = readInputValue(byId("field-external_id"));
+  const parentExternalId = readInputValue(byId("field-parent_external_id"));
+
+  if (programType === "MOVIE") {
+    return title || humanizeIdentifier(externalId) || "Movie";
+  }
+
+  if (programType === "TVSHOW") {
+    return title || humanizeIdentifier(externalId) || "Series";
+  }
+
+  if (programType === "SEASON") {
+    return humanizeIdentifier(parentExternalId) || title || humanizeIdentifier(externalId) || "Series";
+  }
+
+  if (programType === "EPISODE") {
+    return humanizeIdentifier(stripSeasonSuffix(parentExternalId) || parentExternalId) || title || humanizeIdentifier(externalId) || "Series";
+  }
+
+  if (programType === "TRAILER" || programType === "EXTRA") {
+    return title || humanizeIdentifier(parentExternalId) || humanizeIdentifier(externalId) || programType;
+  }
+
+  return title || humanizeIdentifier(externalId) || "Axinom Ingest";
+}
+
+function suggestSingleDocumentMetadata() {
+  const programType = byId("field-program_type").value;
+  const subject = singleDocumentSubject();
+  const index = padIndexLabel(readInputValue(byId("field-index")));
+  const seasonIndex = extractSeasonIndex(readInputValue(byId("field-parent_external_id")));
+
+  if (programType === "MOVIE") {
+    return {
+      name: `${subject} - Movie Ingest`,
+      description: `Single-item movie ingest for ${subject}.`,
+    };
+  }
+
+  if (programType === "TVSHOW") {
+    return {
+      name: `${subject} - TV Show Ingest`,
+      description: `Single-item TV show ingest for ${subject}.`,
+    };
+  }
+
+  if (programType === "SEASON") {
+    return {
+      name: `${subject} - ${index ? `S${index}` : "Season"} Ingest`,
+      description: `Single-item season ingest for ${subject}${index ? ` season ${index}` : ""}.`,
+    };
+  }
+
+  if (programType === "EPISODE") {
+    let episodeLabel = "Episode";
+    let description = `Single-item episode ingest for ${subject}.`;
+    if (seasonIndex && index) {
+      episodeLabel = `S${seasonIndex} E${index}`;
+      description = `Single-item episode ingest for ${subject}, season ${seasonIndex} episode ${index}.`;
+    } else if (index) {
+      episodeLabel = `Episode ${index}`;
+      description = `Single-item episode ingest for ${subject}, episode ${index}.`;
+    }
+    return {
+      name: `${subject} - ${episodeLabel} Ingest`,
+      description,
+    };
+  }
+
+  if (programType === "TRAILER") {
+    return {
+      name: `${subject} - Trailer Ingest`,
+      description: `Single-item trailer ingest for ${subject}.`,
+    };
+  }
+
+  if (programType === "EXTRA") {
+    return {
+      name: `${subject} - Extra Ingest`,
+      description: `Single-item extra ingest for ${subject}.`,
+    };
+  }
+
+  return {
+    name: `${subject} - Ingest`,
+    description: `Single-item ingest for ${subject}.`,
+  };
+}
+
+function syncSingleDocumentMetadata(force = false) {
+  const nameInput = byId("single-name");
+  const descriptionInput = byId("single-description");
+  if (!nameInput || !descriptionInput) {
+    return;
+  }
+
+  const suggestions = suggestSingleDocumentMetadata();
+  state.autoSyncingDocumentMetadata = true;
+  if (force || !state.singleNameDirty || !normalizeString(nameInput.value)) {
+    nameInput.value = suggestions.name;
+    if (!force && !normalizeString(nameInput.value)) {
+      state.singleNameDirty = false;
+    }
+  }
+  if (force || !state.singleDescriptionDirty || !normalizeString(descriptionInput.value)) {
+    descriptionInput.value = suggestions.description;
+    if (!force && !normalizeString(descriptionInput.value)) {
+      state.singleDescriptionDirty = false;
+    }
+  }
+  state.autoSyncingDocumentMetadata = false;
+  if (force) {
+    state.singleNameDirty = false;
+    state.singleDescriptionDirty = false;
+  }
+  setCurrentDownloadName(nameInput.value || "axinom-ingest");
 }
 
 function escapeHtml(value) {
@@ -559,7 +940,6 @@ function collectSinglePayload() {
   return {
     name: readInputValue(byId("single-name")),
     description: readInputValue(byId("single-description")),
-    document_created: readInputValue(byId("single-document_created")),
     ingest_mode: currentSingleIngestMode(),
     fields,
   };
@@ -608,6 +988,7 @@ async function generateSingle() {
   const result = await response.json();
 
   if (result.document) {
+    updateAllDocumentMetaDisplays(result.document);
     setCurrentDownloadName(result.document.name);
     renderJson(JSON.stringify(result.document, null, 2));
   }
@@ -638,7 +1019,6 @@ async function convertBulk() {
   form.append("file", fileInput.files[0]);
   form.append("name", byId("bulk-name").value || "Axinom Bulk Ingest");
   form.append("description", byId("bulk-description").value || "");
-  form.append("document_created", byId("bulk-document_created").value || "");
 
   const sheetName = byId("bulk-sheet").value.trim();
   if (sheetName) {
@@ -653,6 +1033,7 @@ async function convertBulk() {
   const result = await response.json();
 
   if (result.document) {
+    updateAllDocumentMetaDisplays(result.document);
     setCurrentDownloadName(result.document.name || byId("bulk-name").value || "axinom-bulk-ingest");
     renderJson(JSON.stringify(result.document, null, 2));
   }
@@ -880,7 +1261,6 @@ async function convertDirectRows() {
     body: JSON.stringify({
       name: byId("direct-name").value || "Axinom Direct Sheet Ingest",
       description: byId("direct-description").value || "",
-      document_created: byId("direct-document_created").value || "",
       source: "direct-sheet",
       sheet_name: "Direct Entry",
       rows,
@@ -890,6 +1270,7 @@ async function convertDirectRows() {
   const result = await response.json();
 
   if (result.document) {
+    updateAllDocumentMetaDisplays(result.document);
     setCurrentDownloadName(result.document.name || byId("direct-name").value || "axinom-direct-sheet-ingest");
     renderJson(JSON.stringify(result.document, null, 2));
   }
@@ -917,8 +1298,9 @@ function downloadTemplate(version) {
 
 function clearSingle() {
   byId("single-ingest-mode").value = "SIMPLE";
+  state.singleNameDirty = false;
+  state.singleDescriptionDirty = false;
   byId("single-description").value = "";
-  byId("single-document_created").value = "";
 
   for (const fieldId of singleFieldIds) {
     const el = byId(`field-${fieldId}`);
@@ -937,6 +1319,8 @@ function clearSingle() {
     }
   }
 
+  updateAllDocumentMetaDisplays();
+  syncSingleDocumentMetadata(true);
   updateRequiredHint();
   updateVisibleFields();
 }
@@ -1006,10 +1390,15 @@ function renderSelectOptions(selectId, values) {
 
 async function fetchConfig() {
   const configResponse = await fetch("/api/config");
+  if (!configResponse.ok) {
+    throw new Error(`Config request failed with status ${configResponse.status}`);
+  }
   const configPayload = await configResponse.json();
   state.requiredFields = configPayload.required_fields || {};
   state.parentTypeOptions = configPayload.allowed_parent_types || {};
   state.programTypes = configPayload.program_types || state.programTypes;
+  state.helperVersion = formatHelperVersion(configPayload.helper_version || configPayload.app_release_label);
+  state.configLoaded = true;
   if (configPayload.app_release_label) {
     const releaseEl = byId("app-release");
     if (releaseEl) {
@@ -1018,6 +1407,9 @@ async function fetchConfig() {
   }
 
   const picklistResponse = await fetch("/api/picklists");
+  if (!picklistResponse.ok) {
+    throw new Error(`Picklist request failed with status ${picklistResponse.status}`);
+  }
   const picklistPayload = await picklistResponse.json();
 
   renderDataList("video-profile-list", picklistPayload.video_profiles || []);
@@ -1026,6 +1418,8 @@ async function fetchConfig() {
   renderSelectOptions("field-license_countries", picklistPayload.common_country_codes || []);
   refreshDirectProgramTypeOptions();
 
+  updateAllDocumentMetaDisplays();
+  syncSingleDocumentMetadata();
   updateRequiredHint();
   updateVisibleFields();
 }
@@ -1036,14 +1430,46 @@ function bindEvents() {
   });
 
   byId("theme-toggle").addEventListener("click", toggleTheme);
+  byId("runtime-retry").addEventListener("click", () => {
+    void retryRuntimeConnection();
+  });
+  byId("runtime-relaunch").addEventListener("click", relaunchDesktopApp);
 
   byId("field-program_type").addEventListener("change", () => {
     updateRequiredHint();
     updateVisibleFields();
+    syncSingleDocumentMetadata();
   });
   byId("single-ingest-mode").addEventListener("change", () => {
     updateRequiredHint();
     updateVisibleFields();
+  });
+
+  ["field-title", "field-index", "field-parent_external_id", "field-external_id"].forEach((id) => {
+    byId(id).addEventListener("input", () => {
+      syncSingleDocumentMetadata();
+    });
+  });
+
+  byId("single-name").addEventListener("input", () => {
+    if (state.autoSyncingDocumentMetadata) {
+      return;
+    }
+    state.singleNameDirty = Boolean(normalizeString(byId("single-name").value));
+    if (!state.singleNameDirty) {
+      syncSingleDocumentMetadata();
+    }
+    setCurrentDownloadName(byId("single-name").value || "axinom-ingest");
+  });
+
+  byId("single-description").addEventListener("input", () => {
+    if (state.autoSyncingDocumentMetadata) {
+      return;
+    }
+    state.singleDescriptionDirty = Boolean(normalizeString(byId("single-description").value));
+    if (!state.singleDescriptionDirty) {
+      syncSingleDocumentMetadata();
+    }
   });
 
   byId("build-single").addEventListener("click", generateSingle);
@@ -1063,7 +1489,19 @@ function bindEvents() {
 
   byId("copy-json").addEventListener("click", copyOutput);
   byId("download-json").addEventListener("click", downloadOutput);
-  window.addEventListener("beforeunload", stopHeartbeat);
+  window.addEventListener("beforeunload", () => {
+    stopHeartbeat();
+    stopRuntimePolling();
+  });
+  window.addEventListener("focus", () => {
+    void refreshRuntimeStatus({ loadConfig: !state.configLoaded });
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      void sendHeartbeat();
+      void refreshRuntimeStatus({ loadConfig: !state.configLoaded });
+    }
+  });
 
   bindDefaultDateTimeLocalTime(byId("field-license_start"), 21, 0);
   bindDefaultDateTimeLocalTime(byId("field-license_end"), 23, 59);
@@ -1074,10 +1512,18 @@ async function init() {
   ensureLabelTextSpans();
   bindEvents();
   buildDirectTable();
-  startHeartbeat();
-  await fetchConfig();
+  updateAllDocumentMetaDisplays();
+  syncSingleDocumentMetadata(true);
   setCurrentDownloadName(byId("single-name").value || "Axinom Ingest");
   renderJson(state.currentJson);
+  void registerServiceWorker();
+  startHeartbeat();
+  startRuntimePolling();
+
+  const connected = await refreshRuntimeStatus({ loadConfig: true });
+  if (!connected) {
+    setStatus("Helper runtime unavailable. Retry the connection or relaunch the desktop app.", "warn");
+  }
 }
 
 init().catch((error) => {

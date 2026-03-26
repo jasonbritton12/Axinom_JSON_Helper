@@ -1,5 +1,5 @@
 {
-  "version": "1.5.1",
+  "version": "1.5.2",
   "schema_note": "Updated against Axinom_Prod_Media_FullSchema_2026-03-17.json",
   "program_types": {
     "MOVIE": {
