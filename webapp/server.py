@@ -61,10 +61,11 @@ TEMPLATE_FILES = {
     "v1_2_0": _resolve_template("axinom_ingest_template_v1_2_0.xlsx"),
     "v1_3_0": _resolve_template("axinom_ingest_template_v1_3_0.xlsx"),
     "v1_4_0": _resolve_template("axinom_ingest_template_v1_4_0.xlsx"),
-    "latest": _resolve_template("axinom_ingest_template_v1_4_0.xlsx"),
+    "v1_5_0": _resolve_template("axinom_ingest_template_v1_5_0.xlsx"),
+    "latest": _resolve_template("axinom_ingest_template_v1_5_0.xlsx"),
 }
 
-APP_RELEASE_LABEL = "v1.4.0 (2026-03-17)"
+APP_RELEASE_LABEL = "v1.5.0 (2026-03-26)"
 
 
 class AppRequestHandler(SimpleHTTPRequestHandler):
@@ -112,10 +113,8 @@ class AppRequestHandler(SimpleHTTPRequestHandler):
                 {
                     "ok": True,
                     "video_profiles": [
-                        "nDRM (HLS-Only) HD",
-                        "DRM (HLS+Dash) HD",
-                        "nDRM (HLS-Only) SD",
-                        "DRM (HLS+Dash) SD",
+                        "CMAF_File_Non-DRM",
+                        "CMAF_File_DRM",
                     ],
                     "image_types": ["COVER", "TEASER"],
                     "common_country_codes": ["US", "CA", "GB", "DE", "FR", "AU", "ES", "IT", "SE", "NL"],

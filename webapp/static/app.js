@@ -210,6 +210,42 @@ function byId(id) {
   return document.getElementById(id);
 }
 
+function padTwoDigits(value) {
+  return String(value).padStart(2, "0");
+}
+
+function withDefaultDateTimeLocalTime(value, hours, minutes) {
+  const normalized = normalizeString(value);
+  if (!normalized) {
+    return "";
+  }
+
+  const [datePart] = normalized.split("T");
+  if (!datePart) {
+    return normalized;
+  }
+
+  return `${datePart}T${padTwoDigits(hours)}:${padTwoDigits(minutes)}`;
+}
+
+function bindDefaultDateTimeLocalTime(input, hours, minutes) {
+  if (!input) {
+    return;
+  }
+
+  let hadValueOnFocus = false;
+
+  input.addEventListener("focus", () => {
+    hadValueOnFocus = Boolean(normalizeString(input.value));
+  });
+
+  input.addEventListener("change", () => {
+    if (!hadValueOnFocus && normalizeString(input.value)) {
+      input.value = withDefaultDateTimeLocalTime(input.value, hours, minutes);
+    }
+  });
+}
+
 function resolveInitialTheme() {
   try {
     const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
@@ -696,6 +732,12 @@ function createCellInput(columnName, initialValue = "") {
     input.setAttribute("list", config.list);
   }
 
+  if (columnName === "License Start (UTC)") {
+    bindDefaultDateTimeLocalTime(input, 21, 0);
+  } else if (columnName === "License End (UTC)") {
+    bindDefaultDateTimeLocalTime(input, 23, 59);
+  }
+
   return input;
 }
 
@@ -1022,6 +1064,9 @@ function bindEvents() {
   byId("copy-json").addEventListener("click", copyOutput);
   byId("download-json").addEventListener("click", downloadOutput);
   window.addEventListener("beforeunload", stopHeartbeat);
+
+  bindDefaultDateTimeLocalTime(byId("field-license_start"), 21, 0);
+  bindDefaultDateTimeLocalTime(byId("field-license_end"), 23, 59);
 }
 
 async function init() {
