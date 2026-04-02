@@ -3,6 +3,10 @@ const state = {
   parentTypeOptions: {},
   programTypes: ["MOVIE", "TVSHOW", "SEASON", "EPISODE", "TRAILER", "EXTRA"],
   currentJson: '{\n  "name": "Axinom Ingest",\n  "items": []\n}',
+  currentDocument: {
+    name: "Axinom Ingest",
+    items: [],
+  },
   currentDownloadName: "axinom-ingest",
   theme: "dark",
   helperVersion: "",
@@ -739,7 +743,34 @@ function syntaxHighlightJson(jsonString) {
   );
 }
 
+function serializeJsonDocument(document) {
+  return JSON.stringify(document, null, 2);
+}
+
+function parseJsonDocument(jsonString) {
+  try {
+    return JSON.parse(jsonString);
+  } catch (_error) {
+    return null;
+  }
+}
+
+function renderDocument(document) {
+  state.currentDocument = document && typeof document === "object" ? document : null;
+  state.currentJson = state.currentDocument
+    ? serializeJsonDocument(state.currentDocument)
+    : '{\n  "name": "Axinom Ingest",\n  "items": []\n}';
+  byId("json-output").innerHTML = syntaxHighlightJson(state.currentJson);
+}
+
 function renderJson(value) {
+  const parsed = parseJsonDocument(value);
+  if (parsed && typeof parsed === "object") {
+    renderDocument(parsed);
+    return;
+  }
+
+  state.currentDocument = null;
   state.currentJson = value;
   byId("json-output").innerHTML = syntaxHighlightJson(value);
 }
@@ -990,7 +1021,7 @@ async function generateSingle() {
   if (result.document) {
     updateAllDocumentMetaDisplays(result.document);
     setCurrentDownloadName(result.document.name);
-    renderJson(JSON.stringify(result.document, null, 2));
+    renderDocument(result.document);
   }
 
   if (!response.ok || !result.ok) {
@@ -1035,7 +1066,7 @@ async function convertBulk() {
   if (result.document) {
     updateAllDocumentMetaDisplays(result.document);
     setCurrentDownloadName(result.document.name || byId("bulk-name").value || "axinom-bulk-ingest");
-    renderJson(JSON.stringify(result.document, null, 2));
+    renderDocument(result.document);
   }
 
   if (!response.ok || !result.ok) {
@@ -1272,7 +1303,7 @@ async function convertDirectRows() {
   if (result.document) {
     updateAllDocumentMetaDisplays(result.document);
     setCurrentDownloadName(result.document.name || byId("direct-name").value || "axinom-direct-sheet-ingest");
-    renderJson(JSON.stringify(result.document, null, 2));
+    renderDocument(result.document);
   }
 
   if (!response.ok || !result.ok) {
@@ -1326,16 +1357,42 @@ function clearSingle() {
 }
 
 async function copyOutput() {
+  const exportJson = exportableJsonString();
+  if (!exportJson) {
+    return;
+  }
   try {
-    await navigator.clipboard.writeText(state.currentJson);
+    await navigator.clipboard.writeText(exportJson);
     setStatus("JSON copied to clipboard.", "ok");
   } catch (error) {
     setStatus("Clipboard copy failed. You can manually copy from output.", "error");
   }
 }
 
+function exportableJsonString() {
+  if (state.currentDocument && typeof state.currentDocument === "object") {
+    return serializeJsonDocument(state.currentDocument);
+  }
+
+  const parsed = parseJsonDocument(state.currentJson);
+  if (parsed && typeof parsed === "object") {
+    state.currentDocument = parsed;
+    state.currentJson = serializeJsonDocument(parsed);
+    byId("json-output").innerHTML = syntaxHighlightJson(state.currentJson);
+    return state.currentJson;
+  }
+
+  setStatus("Cannot export invalid JSON. Regenerate the document and try again.", "error");
+  return "";
+}
+
 function downloadOutput() {
-  const blob = new Blob([state.currentJson], { type: "application/json" });
+  const exportJson = exportableJsonString();
+  if (!exportJson) {
+    return;
+  }
+
+  const blob = new Blob([exportJson], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -1515,7 +1572,7 @@ async function init() {
   updateAllDocumentMetaDisplays();
   syncSingleDocumentMetadata(true);
   setCurrentDownloadName(byId("single-name").value || "Axinom Ingest");
-  renderJson(state.currentJson);
+  renderDocument(state.currentDocument);
   void registerServiceWorker();
   startHeartbeat();
   startRuntimePolling();

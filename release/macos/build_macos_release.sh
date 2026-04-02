@@ -94,6 +94,13 @@ TEMPLATE_V1_5_2="$(resolve_file \
   exit 1
 }
 
+TEMPLATE_V1_5_3="$(resolve_file \
+  "$ROOT_DIR/axinom_ingest_template_v1_5_3.xlsx" \
+  "$ROOT_DIR/docs/reference/axinom_ingest_template_v1_5_3.xlsx")" || {
+  echo "Missing template file: axinom_ingest_template_v1_5_3.xlsx"
+  exit 1
+}
+
 cleanup() {
   if [[ -n "${PKG_ROOT}" && -d "${PKG_ROOT}" ]]; then
     rm -rf "${PKG_ROOT}" || true
@@ -147,6 +154,7 @@ export PYINSTALLER_CONFIG_DIR="$PYI_CONFIG"
   --add-data "$TEMPLATE_V1_5:templates" \
   --add-data "$TEMPLATE_V1_5_1:templates" \
   --add-data "$TEMPLATE_V1_5_2:templates" \
+  --add-data "$TEMPLATE_V1_5_3:templates" \
   "$ROOT_DIR/webapp/desktop_launcher.py"
 
 APP_PATH="$PYI_DIST/$APP_NAME.app"

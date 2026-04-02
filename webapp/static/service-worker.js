@@ -1,4 +1,4 @@
-const CACHE_NAME = "axinom-ingest-shell-v1-5-2-refresh";
+const CACHE_NAME = "axinom-ingest-shell-v1-5-3-refresh";
 const APP_SHELL = ["/", "/index.html", "/app.js", "/styles.css"];
 
 self.addEventListener("install", (event) => {
