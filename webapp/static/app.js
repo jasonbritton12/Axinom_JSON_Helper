@@ -25,6 +25,7 @@ const VALID_THEMES = new Set(["dark", "light"]);
 const HEARTBEAT_INTERVAL_MS = 15000;
 const RUNTIME_POLL_INTERVAL_MS = 20000;
 const DESKTOP_LAUNCH_PROTOCOL = "axinom-ingest://open";
+const DOCUMENT_NAME_MAX_LENGTH = 50;
 let heartbeatTimer = null;
 let runtimePollTimer = null;
 
@@ -597,6 +598,29 @@ function padIndexLabel(value) {
   return Number.isFinite(parsed) ? padTwoDigits(parsed) : normalized;
 }
 
+function truncateWithEllipsis(value, maxLength) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  if (maxLength <= 3) {
+    return value.slice(0, maxLength);
+  }
+  return `${value.slice(0, maxLength - 3).trimEnd()}...`;
+}
+
+function buildDocumentName(subject, suffix) {
+  const cleanSubject = normalizeString(subject) || "Axinom";
+  const cleanSuffix = normalizeString(suffix) || "Ingest";
+  const reserved = ` - ${cleanSuffix}`;
+
+  if (reserved.length >= DOCUMENT_NAME_MAX_LENGTH) {
+    return truncateWithEllipsis(`${cleanSubject}${reserved}`, DOCUMENT_NAME_MAX_LENGTH);
+  }
+
+  const truncatedSubject = truncateWithEllipsis(cleanSubject, DOCUMENT_NAME_MAX_LENGTH - reserved.length);
+  return `${truncatedSubject}${reserved}`;
+}
+
 function singleDocumentSubject() {
   const programType = byId("field-program_type").value;
   const title = readInputValue(byId("field-title"));
@@ -634,21 +658,21 @@ function suggestSingleDocumentMetadata() {
 
   if (programType === "MOVIE") {
     return {
-      name: `${subject} - Movie Ingest`,
+      name: buildDocumentName(subject, "Movie Ingest"),
       description: `Single-item movie ingest for ${subject}.`,
     };
   }
 
   if (programType === "TVSHOW") {
     return {
-      name: `${subject} - TV Show Ingest`,
+      name: buildDocumentName(subject, "TV Show Ingest"),
       description: `Single-item TV show ingest for ${subject}.`,
     };
   }
 
   if (programType === "SEASON") {
     return {
-      name: `${subject} - ${index ? `S${index}` : "Season"} Ingest`,
+      name: buildDocumentName(subject, `${index ? `S${index}` : "Season"} Ingest`),
       description: `Single-item season ingest for ${subject}${index ? ` season ${index}` : ""}.`,
     };
   }
@@ -664,27 +688,27 @@ function suggestSingleDocumentMetadata() {
       description = `Single-item episode ingest for ${subject}, episode ${index}.`;
     }
     return {
-      name: `${subject} - ${episodeLabel} Ingest`,
+      name: buildDocumentName(subject, `${episodeLabel} Ingest`),
       description,
     };
   }
 
   if (programType === "TRAILER") {
     return {
-      name: `${subject} - Trailer Ingest`,
+      name: buildDocumentName(subject, "Trailer Ingest"),
       description: `Single-item trailer ingest for ${subject}.`,
     };
   }
 
   if (programType === "EXTRA") {
     return {
-      name: `${subject} - Extra Ingest`,
+      name: buildDocumentName(subject, "Extra Ingest"),
       description: `Single-item extra ingest for ${subject}.`,
     };
   }
 
   return {
-    name: `${subject} - Ingest`,
+    name: buildDocumentName(subject, "Ingest"),
     description: `Single-item ingest for ${subject}.`,
   };
 }
@@ -980,6 +1004,7 @@ function validateSinglePayload(payload) {
   const programType = payload?.fields?.program_type || byId("field-program_type").value;
   const required = requiredFieldsForSingle(programType, currentSingleIngestMode());
   const missingLabels = [];
+  const documentName = normalizeString(payload?.name);
 
   required.forEach((fieldId) => {
     if (fieldId === "program_type") {
@@ -991,11 +1016,19 @@ function validateSinglePayload(payload) {
     }
   });
 
-  if (!missingLabels.length) {
-    return "";
+  if (missingLabels.length) {
+    return `Missing required fields: ${missingLabels.join(", ")}`;
   }
 
-  return `Missing required fields: ${missingLabels.join(", ")}`;
+  if (!documentName) {
+    return "Document Name is required.";
+  }
+
+  if (documentName.length > DOCUMENT_NAME_MAX_LENGTH) {
+    return `Document Name must be ${DOCUMENT_NAME_MAX_LENGTH} characters or fewer.`;
+  }
+
+  return "";
 }
 
 async function generateSingle() {
@@ -1044,11 +1077,21 @@ async function convertBulk() {
     return;
   }
 
+  const documentName = normalizeString(byId("bulk-name").value || "Axinom Bulk Ingest");
+  if (!documentName) {
+    setStatus("Document Name is required.", "error");
+    return;
+  }
+  if (documentName.length > DOCUMENT_NAME_MAX_LENGTH) {
+    setStatus(`Document Name must be ${DOCUMENT_NAME_MAX_LENGTH} characters or fewer.`, "error");
+    return;
+  }
+
   setStatus("Converting workbook to ingest JSON...");
 
   const form = new FormData();
   form.append("file", fileInput.files[0]);
-  form.append("name", byId("bulk-name").value || "Axinom Bulk Ingest");
+  form.append("name", documentName);
   form.append("description", byId("bulk-description").value || "");
 
   const sheetName = byId("bulk-sheet").value.trim();
@@ -1276,6 +1319,16 @@ function clearDirectRows() {
 }
 
 async function convertDirectRows() {
+  const documentName = normalizeString(byId("direct-name").value || "Axinom Direct Sheet Ingest");
+  if (!documentName) {
+    setStatus("Document Name is required.", "error");
+    return;
+  }
+  if (documentName.length > DOCUMENT_NAME_MAX_LENGTH) {
+    setStatus(`Document Name must be ${DOCUMENT_NAME_MAX_LENGTH} characters or fewer.`, "error");
+    return;
+  }
+
   const rows = readDirectRows();
   if (!rows.length) {
     setStatus("Enter at least one row in the direct sheet.", "error");
@@ -1290,7 +1343,7 @@ async function convertDirectRows() {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      name: byId("direct-name").value || "Axinom Direct Sheet Ingest",
+      name: documentName,
       description: byId("direct-description").value || "",
       source: "direct-sheet",
       sheet_name: "Direct Entry",

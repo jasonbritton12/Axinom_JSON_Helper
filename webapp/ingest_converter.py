@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+DOCUMENT_NAME_MAX_LENGTH = 50
+
 
 HEADER_TO_FIELD = {
     "assettype": "program_type",
@@ -135,8 +137,16 @@ class IngestConverter:
             fields,
             normalized_type=self.normalize_program_type(fields.get("program_type")),
         )
+        effective_name = document_name or suggested_name or "Axinom Ingest"
+        name_error = _validate_document_name(effective_name)
+        if name_error:
+            return {
+                "ok": False,
+                "errors": [name_error],
+                "warnings": build_result.warnings,
+            }
 
-        document: Dict[str, Any] = {"name": document_name or suggested_name or "Axinom Ingest"}
+        document: Dict[str, Any] = {"name": effective_name}
 
         effective_description = document_description or suggested_description
         if effective_description:
@@ -208,6 +218,18 @@ class IngestConverter:
 
         overall_ok = len(items) > 0 and len(row_errors) == 0
 
+        document_name = _clean_text(document_name) or "Axinom Ingest"
+        name_error = _validate_document_name(document_name)
+        if name_error:
+            row_errors.append(
+                {
+                    "row": 0,
+                    "errors": [name_error],
+                    "raw_row": {},
+                }
+            )
+            overall_ok = False
+
         if not overall_ok and not row_errors:
             row_errors.append(
                 {
@@ -217,7 +239,7 @@ class IngestConverter:
                 }
             )
 
-        document = {"name": _clean_text(document_name) or "Axinom Ingest"} if items and not row_errors else None
+        document = {"name": document_name} if items and not row_errors else None
         if document:
             description = _clean_text(document_description)
             if description:
@@ -658,18 +680,18 @@ def _suggest_single_document_metadata(fields: Dict[str, Any], *, normalized_type
     season_index = _extract_season_index(fields.get("parent_external_id"))
 
     if normalized_type == "MOVIE":
-        name = f"{subject} - Movie Ingest"
+        name = _build_document_name(subject, "Movie Ingest")
         description = f"Single-item movie ingest for {subject}."
         return name, description
 
     if normalized_type == "TVSHOW":
-        name = f"{subject} - TV Show Ingest"
+        name = _build_document_name(subject, "TV Show Ingest")
         description = f"Single-item TV show ingest for {subject}."
         return name, description
 
     if normalized_type == "SEASON":
         suffix = f"S{index}" if index else "Season"
-        name = f"{subject} - {suffix} Ingest"
+        name = _build_document_name(subject, f"{suffix} Ingest")
         description = f"Single-item season ingest for {subject}{f' season {index}' if index else ''}."
         return name, description
 
@@ -683,15 +705,44 @@ def _suggest_single_document_metadata(fields: Dict[str, Any], *, normalized_type
         else:
             label = "Episode"
             description = f"Single-item episode ingest for {subject}."
-        return f"{subject} - {label} Ingest", description
+        return _build_document_name(subject, f"{label} Ingest"), description
 
     if normalized_type == "TRAILER":
-        return f"{subject} - Trailer Ingest", f"Single-item trailer ingest for {subject}."
+        return _build_document_name(subject, "Trailer Ingest"), f"Single-item trailer ingest for {subject}."
 
     if normalized_type == "EXTRA":
-        return f"{subject} - Extra Ingest", f"Single-item extra ingest for {subject}."
+        return _build_document_name(subject, "Extra Ingest"), f"Single-item extra ingest for {subject}."
 
-    return f"{subject} - Ingest", f"Single-item ingest for {subject}."
+    return _build_document_name(subject, "Ingest"), f"Single-item ingest for {subject}."
+
+
+def _truncate_with_ellipsis(value: str, max_length: int) -> str:
+    if len(value) <= max_length:
+        return value
+    if max_length <= 3:
+        return value[:max_length]
+    return f"{value[: max_length - 3].rstrip()}..."
+
+
+def _build_document_name(subject: str, suffix: str) -> str:
+    clean_subject = _clean_text(subject) or "Axinom"
+    clean_suffix = _clean_text(suffix) or "Ingest"
+    reserved = f" - {clean_suffix}"
+
+    if len(reserved) >= DOCUMENT_NAME_MAX_LENGTH:
+        return _truncate_with_ellipsis(f"{clean_subject}{reserved}", DOCUMENT_NAME_MAX_LENGTH)
+
+    truncated_subject = _truncate_with_ellipsis(clean_subject, DOCUMENT_NAME_MAX_LENGTH - len(reserved))
+    return f"{truncated_subject}{reserved}"
+
+
+def _validate_document_name(value: str) -> Optional[str]:
+    text = _clean_text(value)
+    if not text:
+        return "Document Name is required."
+    if len(text) > DOCUMENT_NAME_MAX_LENGTH:
+        return f"Document Name must be {DOCUMENT_NAME_MAX_LENGTH} characters or fewer."
+    return None
 
 
 def _split_multi(value: Any, *, uppercase: bool = False) -> List[str]:

@@ -76,10 +76,11 @@ TEMPLATE_FILES = {
     "v1_5_1": _resolve_template("axinom_ingest_template_v1_5_1.xlsx"),
     "v1_5_2": _resolve_template("axinom_ingest_template_v1_5_2.xlsx"),
     "v1_5_3": _resolve_template("axinom_ingest_template_v1_5_3.xlsx"),
-    "latest": _resolve_template("axinom_ingest_template_v1_5_3.xlsx"),
+    "v1_5_4": _resolve_template("axinom_ingest_template_v1_5_4.xlsx"),
+    "latest": _resolve_template("axinom_ingest_template_v1_5_4.xlsx"),
 }
 
-APP_RELEASE_LABEL = "v1.5.3 (2026-04-01)"
+APP_RELEASE_LABEL = "v1.5.4 (2026-04-02)"
 
 
 class AppRequestHandler(SimpleHTTPRequestHandler):
