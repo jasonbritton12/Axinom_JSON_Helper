@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Axinom Ingest JSON Helper</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: radial-gradient(circle at 12% 10%, #1f3042 0%, #101923 44%, #090f17 100%);
+        --panel: #111c29;
+        --ink: #e4edf8;
+        --muted: #9fb4c8;
+        --accent: #2b8ac2;
+        --accent-strong: #1f72a5;
+        --border: #2a4054;
+        --warn: #f6be66;
+        --error: #ff9a9a;
+        --ok: #89e5af;
+        --hero-gradient: linear-gradient(112deg, #0f3552 0%, #0c4f77 56%, #1f7da1 100%);
+        --hero-text: #f4fcff;
+        --helper: #8fb0cb;
+        --tabs-bg: #0f2233;
+        --tab-text: #bcd1e4;
+        --tab-hover: #1b3448;
+        --tab-active: #2b8ac2;
+        --field-bg: #0f1a25;
+        --field-border: #375168;
+        --required-bg: #0f2739;
+        --required-text: #b8d7ef;
+        --required-label: #d7e7f6;
+        --required-star: #f87171;
+        --secondary-btn: #4b657d;
+        --sheet-bg: #0f1b28;
+        --table-head-bg: #173248;
+        --table-head-ink: #d2e6f7;
+        --table-row-marker-bg: #132b3e;
+        --table-row-marker-ink: #a5c6e0;
+        --table-grid: #30495e;
+        --status-bg: #1a3145;
+        --status-text: #c0dff6;
+        --status-ok-bg: #183826;
+        --status-warn-bg: #3a2f1c;
+        --status-error-bg: #3a1f23;
+        --output-bg: #0d1117;
+        --output-text: #c9d1d9;
+        --output-border: #30363d;
+        
+        /* GitHub Vibrant Dark Colors */
+        --json-key: #7ee787;      /* Green */
+        --json-string: #a5d6ff;   /* Light Blue */
+        --json-number: #f2cc60;   /* Yellow */
+        --json-boolean: #ff7b72;  /* Red */
+        --json-null: #d2a8ff;     /* Purple */
+        
+        --theme-toggle-bg: rgba(255, 255, 255, 0.18);
+        --theme-toggle-border: rgba(255, 255, 255, 0.28);
+      }
+
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --bg: radial-gradient(circle at 10% 10%, #d9f2ff 0%, #f6f8fb 42%, #eef2f6 100%);
+        --panel: #ffffff;
+        --ink: #0b1b2b;
+        --muted: #4a5b6b;
+        --accent: #045f8a;
+        --accent-strong: #024969;
+        --border: #d4deea;
+        --warn: #aa5d00;
+        --error: #9b1c1c;
+        --ok: #0b6e3b;
+        --hero-gradient: linear-gradient(112deg, #023047 0%, #045f8a 56%, #1886a8 100%);
+        --hero-text: #f4fcff;
+        --helper: #35526c;
+        --tabs-bg: #e9f2fa;
+        --tab-text: #234058;
+        --tab-hover: #d6e6f3;
+        --tab-active: #025a82;
+        --field-bg: #ffffff;
+        --field-border: #c5d2df;
+        --required-bg: #eef7fc;
+        --required-text: #183146;
+        --required-label: #11364f;
+        --required-star: #b62222;
+        --secondary-btn: #577a95;
+        --sheet-bg: #f8fbff;
+        --table-head-bg: #e8f2fa;
+        --table-head-ink: #23435d;
+        --table-row-marker-bg: #f0f6fb;
+        --table-row-marker-ink: #34526c;
+        --table-grid: #d9e4ef;
+        --status-bg: #e8f2fb;
+        --status-text: #173e5f;
+        --status-ok-bg: #e4f6eb;
+        --status-warn-bg: #fff0df;
+        --status-error-bg: #fce8e8;
+        --output-bg: #f6f8fa;
+        --output-text: #24292f;
+        --output-border: #d0d7de;
+        
+        /* GitHub Vibrant Light Colors */
+        --json-key: #116329;      /* Dark Green */
+        --json-string: #032f62;   /* Dark Blue */
+        --json-number: #b08800;   /* Dark Yellow */
+        --json-boolean: #d73a49;  /* Red */
+        --json-null: #6f42c1;     /* Purple */
+        
+        --theme-toggle-bg: rgba(255, 255, 255, 0.2);
+        --theme-toggle-border: rgba(255, 255, 255, 0.33);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        min-height: 100vh;
+      }
+
+      .page {
+        width: min(1260px, 95vw);
+        margin: 1.4rem auto 2.2rem;
+        display: grid;
+        gap: 1rem;
+        min-width: 0;
+        overflow-x: clip;
+      }
+
+      .hero {
+        background: var(--hero-gradient);
+        color: var(--hero-text);
+        border-radius: 14px;
+        padding: 1.2rem 1.3rem;
+        box-shadow: 0 14px 26px -20px rgba(0, 0, 0, 0.6);
+      }
+
+      .hero-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.8rem;
+        align-items: flex-start;
+      }
+
+      .hero-title-container {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+
+      .app-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      }
+
+      .hero h1 {
+        margin: 0 0 0.3rem;
+        font-size: clamp(1.2rem, 1.8vw, 1.8rem);
+      }
+
+      .hero p { margin: 0; opacity: 0.95; }
+      .release-meta { margin-top: 0.35rem; font-size: 0.82rem; letter-spacing: 0.01em; opacity: 0.92; }
+
+      .theme-toggle {
+        border: 1px solid var(--theme-toggle-border);
+        border-radius: 999px;
+        padding: 0.35rem 0.8rem;
+        background: var(--theme-toggle-bg);
+        color: #fff;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .theme-toggle:hover { background: rgba(255, 255, 255, 0.28); transform: none; }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 1rem;
+        box-shadow: 0 12px 22px -24px rgba(1, 37, 62, 0.8);
+        min-width: 0;
+        overflow-x: hidden;
+      }
+
+      h2 { margin: 0 0 0.65rem; font-size: 1.1rem; }
+      .helper { margin: 0 0 0.8rem; font-size: 0.83rem; color: var(--helper); }
+
+      .tabs {
+        display: inline-flex;
+        gap: 0.45rem;
+        padding: 0.3rem;
+        border-radius: 999px;
+        background: var(--tabs-bg);
+        margin-bottom: 0.9rem;
+      }
+
+      .tab-btn {
+        border: none;
+        border-radius: 999px;
+        padding: 0.38rem 0.88rem;
+        background: transparent;
+        color: var(--tab-text);
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .tab-btn:hover { background: var(--tab-hover); color: var(--tab-text); }
+      .tab-btn.is-active { background: var(--tab-active); color: #fff; }
+      
+      .tab-btn:disabled { 
+        opacity: 0.4; 
+        cursor: not-allowed; 
+      }
+      .tab-btn:disabled:hover { 
+        background: transparent; 
+        color: var(--tab-text); 
+      }
+
+      .tab-panel { display: none; min-width: 0; }
+      .tab-panel.is-active { display: block; }
+
+      .grid { display: grid; gap: 0.7rem; min-width: 0; }
+      .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+      label { display: grid; gap: 0.3rem; font-size: 0.84rem; color: var(--muted); min-width: 0; }
+      .label-text { font-weight: 500; }
+      .field-note { font-size: 0.74rem; color: var(--helper); }
+      label.is-required .label-text { font-weight: 700; color: var(--required-label); }
+      label.is-required .label-text::after { content: " *"; color: var(--required-star); font-weight: 800; }
+      .hidden-field { display: none !important; }
+      .top-gap { margin-top: 0.7rem; }
+
+      input, select, textarea, button { font: inherit; }
+      input, select, textarea {
+        width: 100%; border: 1px solid var(--field-border); border-radius: 8px;
+        padding: 0.46rem 0.58rem; background: var(--field-bg); color: var(--ink);
+      }
+      select[multiple] { min-height: 7.6rem; padding: 0.34rem 0.42rem; overflow-y: auto; }
+      input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+        outline: 2px solid var(--accent); outline-offset: 1px;
+      }
+      textarea { min-height: 76px; resize: vertical; }
+
+      .required-box {
+        margin: 0.75rem 0; padding: 0.52rem 0.67rem; border-left: 4px solid var(--accent);
+        background: var(--required-bg); border-radius: 4px; color: var(--required-text);
+        font-size: 0.84rem;
+      }
+
+      .actions { margin-top: 0.85rem; display: flex; flex-wrap: wrap; gap: 0.55rem; }
+      button {
+        border: none; border-radius: 999px; padding: 0.46rem 0.94rem;
+        background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;
+        transition: transform 120ms ease, background 120ms ease;
+      }
+      button:hover { background: var(--accent-strong); transform: translateY(-1px); }
+      button.secondary { background: var(--secondary-btn); }
+      button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+      .status { margin-bottom: 0.5rem; padding: 0.5rem 0.65rem; border-radius: 8px; font-size: 0.86rem; background: var(--status-bg); color: var(--status-text); }
+      .status.ok { background: var(--status-ok-bg); color: var(--ok); }
+      .status.warn { background: var(--status-warn-bg); color: var(--warn); }
+      .status.error { background: var(--status-error-bg); color: var(--error); }
+
+      .output {
+        margin: 0; min-height: 210px; max-height: 480px; overflow: auto;
+        background: var(--output-bg); color: var(--output-text); border: 1px solid var(--output-border);
+        border-radius: 10px; padding: 0.8rem; font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+        font-size: 0.82rem; line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
+      }
+
+      .json-key { color: var(--json-key); }
+      .json-string { color: var(--json-string); }
+      .json-number { color: var(--json-number); }
+      .json-boolean { color: var(--json-boolean); }
+      .json-null { color: var(--json-null); }
+
+      @media (max-width: 980px) { .grid.three { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+      @media (max-width: 680px) {
+        .grid.two, .grid.three { grid-template-columns: 1fr; }
+        .hero-title-container { flex-direction: column; align-items: flex-start; gap: 10px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="hero-head">
+          <div class="hero-title-container">
+            <img src="icon.png" alt="Axinom Logo" class="app-icon" onerror="this.style.display='none'">
+            <div>
+              <h1>Axinom Ingest JSON Helper</h1>
+              <p>Single-title form, bulk Excel conversion, and direct spreadsheet-style entry.</p>
+            </div>
+          </div>
+          <button id="theme-toggle" type="button" class="theme-toggle" aria-label="Toggle color theme">
+            Use Light Theme
+          </button>
+        </div>
+        <p class="release-meta">Release: <span id="app-release">v2.0.0</span></p>
+      </section>
+
+      <section class="card tabs-card">
+        <div class="tabs" role="tablist" aria-label="Workflows">
+          <button class="tab-btn is-active" type="button" data-tab-target="tab-single">Single Title</button>
+          <button class="tab-btn" type="button" data-tab-target="tab-bulk" disabled title="Coming in a future update">Bulk Excel</button>
+          <button class="tab-btn" type="button" data-tab-target="tab-direct" disabled title="Coming in a future update">Direct Sheet</button>
+        </div>
+
+        <!-- SINGLE TAB -->
+        <div id="tab-single" class="tab-panel is-active" role="tabpanel">
+          <h2>Single Item Builder</h2>
+          <p class="helper">`Simple` mode shows minimum ingest fields. `TRAILER` and `EXTRA` are first-class types in this schema and require a parent external ID.</p>
+
+          <div class="grid three">
+            <label>
+              <span class="label-text">Document Name</span>
+              <span class="field-note">Max 50 chars. Auto-fills from metadata.</span>
+              <!-- Added maxlength="50" here -->
+              <input id="single-name" type="text" value="Axinom Single Ingest" maxlength="50" />
+            </label>
+            <label>
+              <span class="label-text">Document Description</span>
+              <span class="field-note">Auto-filled from item metadata. You can still edit it.</span>
+              <input id="single-description" type="text" placeholder="Optional ingest batch description" />
+            </label>
+            <label>
+              <span class="label-text">Document Created</span>
+              <!-- Added id so we can visually update it on generate -->
+              <input id="single-document-created-display" type="text" value="Auto-stamped when JSON is generated" readonly />
+            </label>
+          </div>
+
+          <div class="grid three top-gap">
+            <label data-field="program_type" class="always-required is-required">
+              <span class="label-text">Program Type</span>
+              <select id="field-program_type">
+                <option value="MOVIE" selected>MOVIE</option>
+                <option value="TVSHOW">TVSHOW</option>
+                <option value="SEASON">SEASON</option>
+                <option value="EPISODE">EPISODE</option>
+                <option value="TRAILER">TRAILER</option>
+                <option value="EXTRA">EXTRA</option>
+              </select>
+            </label>
+            <label class="always-required is-required">
+              <span class="label-text">Ingest Mode</span>
+              <select id="single-ingest-mode">
+                <option value="SIMPLE" selected>Simple (Minimum)</option>
+                <option value="FULL">Full</option>
+              </select>
+            </label>
+            <label data-field="external_id" class="is-required">
+              <span class="label-text">External ID</span>
+              <input id="field-external_id" type="text" placeholder="M_avatar_2009" />
+            </label>
+          </div>
+
+          <div class="required-box" id="required-fields">Required: loading...</div>
+
+          <div class="grid three" id="single-fields-grid">
+            <label data-field="title"><span class="label-text">Title</span><input id="field-title" type="text" placeholder="Avatar" /></label>
+            <label data-field="original_title"><span class="label-text">Original Title</span><input id="field-original_title" type="text" /></label>
+            <label data-field="released"><span class="label-text">Released Date</span><input id="field-released" type="date" /></label>
+            <label data-field="description"><span class="label-text">Description</span><textarea id="field-description"></textarea></label>
+            <label data-field="synopsis"><span class="label-text">Synopsis</span><textarea id="field-synopsis"></textarea></label>
+            <label data-field="studio"><span class="label-text">Studio</span><input id="field-studio" type="text" /></label>
+            <label data-field="index"><span class="label-text" id="lbl-index">Index</span><input id="field-index" type="number" min="1" /></label>
+            <label data-field="parent_type"><span class="label-text">Parent Type</span><select id="field-parent_type"></select></label>
+            <label data-field="parent_external_id"><span class="label-text">Parent External ID</span><input id="field-parent_external_id" type="text" /></label>
+            <label data-field="genres"><span class="label-text">Genres (comma-separated)</span><input id="field-genres" type="text" /></label>
+            <label data-field="tags"><span class="label-text">Tags (comma-separated)</span><input id="field-tags" type="text" /></label>
+            <label data-field="cast"><span class="label-text">Cast (comma-separated)</span><input id="field-cast" type="text" /></label>
+            <label data-field="production_countries"><span class="label-text">Production Countries</span>
+              <select id="field-production_countries" multiple size="6">
+                <option value="US">US</option><option value="CA">CA</option><option value="GB">GB</option>
+                <option value="DE">DE</option><option value="FR">FR</option><option value="AU">AU</option>
+              </select>
+            </label>
+            <label data-field="license_start"><span class="label-text">License Start (UTC)</span><input id="field-license_start" type="datetime-local" /></label>
+            <label data-field="license_end"><span class="label-text">License End (UTC)</span><input id="field-license_end" type="datetime-local" /></label>
+            <label data-field="license_countries"><span class="label-text">License Countries</span>
+              <select id="field-license_countries" multiple size="6">
+                <option value="US">US</option><option value="CA">CA</option><option value="GB">GB</option>
+                <option value="DE">DE</option><option value="FR">FR</option><option value="AU">AU</option>
+              </select>
+            </label>
+            <label data-field="video_source"><span class="label-text">Main Video Source</span><input id="field-video_source" type="text" /></label>
+            <label data-field="video_profile"><span class="label-text">Main Video Profile</span><input id="field-video_profile" type="text" list="video-profile-list" /></label>
+            <label data-field="trailer_source"><span class="label-text">Trailer Source</span><input id="field-trailer_source" type="text" /></label>
+            <label data-field="trailer_profile"><span class="label-text">Trailer Profile</span><input id="field-trailer_profile" type="text" list="video-profile-list" /></label>
+            <label data-field="cover_image"><span class="label-text">Cover Image</span><input id="field-cover_image" type="text" /></label>
+            <label data-field="teaser_image"><span class="label-text">Teaser Image</span><input id="field-teaser_image" type="text" /></label>
+          </div>
+
+          <div class="actions">
+            <button id="build-single" type="button">Generate JSON</button>
+            <button id="clear-single" type="button" class="secondary">Clear Form</button>
+          </div>
+        </div>
+
+        <!-- BULK TAB (Disabled) -->
+        <div id="tab-bulk" class="tab-panel" role="tabpanel" aria-hidden="true">
+          <h2>Bulk Excel Converter</h2>
+          <p class="helper">This feature requires a backend service and is currently disabled.</p>
+        </div>
+
+        <!-- DIRECT TAB (Disabled) -->
+        <div id="tab-direct" class="tab-panel" role="tabpanel" aria-hidden="true">
+          <h2>Direct Spreadsheet Entry</h2>
+          <p class="helper">This feature requires a backend service and is currently disabled.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Output</h2>
+        <div id="status" class="status">Ready.</div>
+        <pre class="output"><code id="json-output" class="json-code"></code></pre>
+        <div class="actions">
+          <button id="download-json" type="button" disabled>Download JSON</button>
+          <button id="copy-json" type="button" class="secondary" disabled>Copy JSON</button>
+        </div>
+      </section>
+
+      <datalist id="video-profile-list">
+        <option value="CMAF_File_Non-DRM"></option>
+        <option value="CMAF_File_DRM"></option>
+        <option value="CMAF_File_Non-DRM_SD"></option>
+        <option value="CMAF_File_DRM_SD"></option>
+      </datalist>
+
+    </main>
+
+    <script>
+      /** --- THEME & TABS --- */
+      const themeToggle = document.getElementById('theme-toggle');
+      let currentTheme = localStorage.getItem('axinom_ingest_theme') || 'dark';
+
+      function applyTheme(t) {
+        document.documentElement.setAttribute('data-theme', t);
+        themeToggle.textContent = t === 'dark' ? 'Use Light Theme' : 'Use Dark Theme';
+        localStorage.setItem('axinom_ingest_theme', t);
+        currentTheme = t;
+      }
+      applyTheme(currentTheme);
+      themeToggle.addEventListener('click', () => applyTheme(currentTheme === 'dark' ? 'light' : 'dark'));
+
+      document.querySelectorAll('.tab-btn:not([disabled])').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('is-active'));
+          document.querySelectorAll('.tab-panel').forEach(p => {
+            p.classList.remove('is-active');
+            p.setAttribute('aria-hidden', 'true');
+          });
+          btn.classList.add('is-active');
+          const target = document.getElementById(btn.getAttribute('data-tab-target'));
+          target.classList.add('is-active');
+          target.setAttribute('aria-hidden', 'false');
+        });
+      });
+
+      /** --- CONSTANTS & CONFIG --- */
+      const FIELDS = {
+        FULL: {
+          MOVIE: ['title', 'original_title', 'description', 'synopsis', 'released', 'studio', 'genres', 'tags', 'cast', 'production_countries', 'license_start', 'license_end', 'license_countries', 'video_source', 'video_profile', 'trailer_source', 'trailer_profile', 'cover_image', 'teaser_image'],
+          TVSHOW: ['title', 'original_title', 'description', 'synopsis', 'released', 'studio', 'genres', 'tags', 'cast', 'production_countries', 'license_start', 'license_end', 'license_countries', 'trailer_source', 'trailer_profile', 'cover_image', 'teaser_image'],
+          SEASON: ['description', 'synopsis', 'released', 'studio', 'index', 'parent_external_id', 'genres', 'tags', 'cast', 'production_countries', 'license_start', 'license_end', 'license_countries', 'trailer_source', 'trailer_profile', 'cover_image', 'teaser_image'],
+          EPISODE: ['title', 'original_title', 'description', 'synopsis', 'released', 'studio', 'index', 'parent_external_id', 'genres', 'tags', 'cast', 'production_countries', 'license_start', 'license_end', 'license_countries', 'video_source', 'video_profile', 'trailer_source', 'trailer_profile', 'cover_image', 'teaser_image'],
+          TRAILER: ['title', 'original_title', 'description', 'synopsis', 'released', 'studio', 'parent_type', 'parent_external_id', 'genres', 'tags', 'cast', 'production_countries', 'license_start', 'license_end', 'license_countries', 'video_source', 'video_profile', 'cover_image', 'teaser_image'],
+          EXTRA: ['title', 'original_title', 'description', 'synopsis', 'released', 'studio', 'parent_type', 'parent_external_id', 'genres', 'tags', 'cast', 'production_countries', 'license_start', 'license_end', 'license_countries', 'video_source', 'video_profile', 'trailer_source', 'trailer_profile', 'cover_image', 'teaser_image']
+        },
+        SIMPLE: {
+          MOVIE: ['title', 'video_source', 'video_profile'],
+          TVSHOW: ['title'],
+          SEASON: ['index', 'parent_external_id'],
+          EPISODE: ['title', 'index', 'parent_external_id', 'video_source', 'video_profile'],
+          TRAILER: ['title', 'parent_type', 'parent_external_id', 'video_source', 'video_profile'],
+          EXTRA: ['title', 'parent_type', 'parent_external_id', 'video_source', 'video_profile']
+        }
+      };
+
+      const REQUIRED = {
+        BACKEND: { MOVIE: ['external_id', 'title'], TVSHOW: ['external_id', 'title'], SEASON: ['external_id', 'index', 'parent_external_id'], EPISODE: ['external_id', 'title', 'index', 'parent_external_id'], TRAILER: ['external_id', 'title', 'parent_type', 'parent_external_id'], EXTRA: ['external_id', 'title', 'parent_type', 'parent_external_id'] },
+        FRONTEND_SIMPLE: { MOVIE: ['video_source', 'video_profile'], EPISODE: ['video_source', 'video_profile'], TRAILER: ['video_source', 'video_profile'], EXTRA: ['video_source', 'video_profile'] }
+      };
+
+      const PARENT_TYPES = { SEASON: ['TVSHOW'], EPISODE: ['SEASON'], TRAILER: ['MOVIE', 'TVSHOW', 'SEASON', 'EPISODE', 'EXTRA'], EXTRA: ['MOVIE', 'TVSHOW'], MOVIE: [], TVSHOW: [] };
+
+      /** --- STATE & ELEMENTS --- */
+      let dirtyName = false, dirtyDesc = false, currentJSON = "";
+
+      const el = id => document.getElementById(id);
+      const inputs = {
+        doc_name: el('single-name'), doc_desc: el('single-description'),
+        program_type: el('field-program_type'), ingest_mode: el('single-ingest-mode'),
+        external_id: el('field-external_id'), title: el('field-title'), original_title: el('field-original_title'),
+        parent_type: el('field-parent_type'), parent_external_id: el('field-parent_external_id'),
+        index: el('field-index'), released: el('field-released'), description: el('field-description'),
+        synopsis: el('field-synopsis'), studio: el('field-studio'), genres: el('field-genres'), tags: el('field-tags'),
+        cast: el('field-cast'), production_countries: el('field-production_countries'),
+        license_start: el('field-license_start'), license_end: el('field-license_end'), license_countries: el('field-license_countries'),
+        video_source: el('field-video_source'), video_profile: el('field-video_profile'),
+        trailer_source: el('field-trailer_source'), trailer_profile: el('field-trailer_profile'),
+        cover_image: el('field-cover_image'), teaser_image: el('field-teaser_image')
+      };
+
+      /** --- LOGIC --- */
+      function init() {
+        inputs.program_type.addEventListener('change', refreshUI);
+        inputs.ingest_mode.addEventListener('change', refreshUI);
+        
+        ['title', 'index', 'parent_external_id', 'external_id'].forEach(k => inputs[k].addEventListener('input', autoSuggest));
+        inputs.doc_name.addEventListener('input', () => { dirtyName = !!inputs.doc_name.value; });
+        inputs.doc_desc.addEventListener('input', () => { dirtyDesc = !!inputs.doc_desc.value; });
+
+        const applyTime = (f, time) => f.addEventListener('change', e => {
+          if (e.target.value && e.target.value.length === 10) e.target.value = `${e.target.value}T${time}`;
+        });
+        applyTime(inputs.license_start, '21:00');
+        applyTime(inputs.license_end, '23:59');
+
+        el('build-single').addEventListener('click', generate);
+        el('clear-single').addEventListener('click', clearForm);
+        el('download-json').addEventListener('click', downloadJSON);
+        el('copy-json').addEventListener('click', copyJSON);
+
+        refreshUI();
+        renderEmptyJSON();
+      }
+
+      function refreshUI() {
+        const type = inputs.program_type.value;
+        const mode = inputs.ingest_mode.value;
+        
+        el('lbl-index').textContent = type === 'SEASON' ? 'Season Index (Season Number)' : type === 'EPISODE' ? 'Episode Index (Episode Number)' : 'Index';
+        inputs.parent_type.innerHTML = PARENT_TYPES[type].map(pt => `<option value="${pt}">${pt}</option>`).join('');
+        
+        const visibleFields = FIELDS[mode][type] || [];
+        document.querySelectorAll('#single-fields-grid label[data-field]').forEach(label => {
+          const fieldName = label.getAttribute('data-field');
+          if (visibleFields.includes(fieldName)) label.classList.remove('hidden-field');
+          else label.classList.add('hidden-field');
+        });
+
+        const reqBase = REQUIRED.BACKEND[type] || [];
+        const reqFront = (mode === 'SIMPLE' && REQUIRED.FRONTEND_SIMPLE[type]) ? REQUIRED.FRONTEND_SIMPLE[type] : [];
+        const allReq = [...reqBase, ...reqFront];
+
+        document.querySelectorAll('#single-fields-grid label[data-field]').forEach(label => {
+          const fieldName = label.getAttribute('data-field');
+          if (allReq.includes(fieldName)) label.classList.add('is-required');
+          else label.classList.remove('is-required');
+        });
+
+        const humanNames = { title: 'Title', external_id: 'External ID', index: el('lbl-index').textContent, parent_type: 'Parent Type', parent_external_id: 'Parent External ID', video_source: 'Main Video Source', video_profile: 'Main Video Profile' };
+        const reqNames = allReq.map(k => humanNames[k] || k).join(', ');
+        el('required-fields').textContent = `Required for ${type} (${mode === 'SIMPLE' ? 'Simple' : 'Full'}): ${reqNames}`;
+
+        autoSuggest();
+      }
+
+      function humanize(str) { return str ? str.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : ''; }
+
+      function autoSuggest() {
+        const type = inputs.program_type.value, t = inputs.title.value.trim(), ext = inputs.external_id.value.trim(), pExt = inputs.parent_external_id.value.trim(), idx = inputs.index.value.trim();
+        let subject = '', name = '', desc = '';
+
+        if (type === 'MOVIE') { subject = t || humanize(ext) || 'Movie'; name = `${subject} - Movie Ingest`; desc = `Single-item movie ingest for ${subject}.`; }
+        else if (type === 'TVSHOW') { subject = t || humanize(ext) || 'Series'; name = `${subject} - TV Show Ingest`; desc = `Single-item TV show ingest for ${subject}.`; }
+        else if (type === 'SEASON') { subject = humanize(pExt) || t || humanize(ext) || 'Series'; name = idx ? `${subject} - S${idx} Ingest` : `${subject} - Season Ingest`; desc = idx ? `Single-item season ingest for ${subject} season ${idx}.` : `Single-item season ingest for ${subject}.`; }
+        else if (type === 'EPISODE') { subject = humanize(pExt) || t || humanize(ext) || 'Series'; let sMatch = pExt.match(/S(\d+)/i), sNum = sMatch ? sMatch[1] : '?'; name = (sNum!=='?' && idx) ? `${subject} - S${sNum} E${idx} Ingest` : idx ? `${subject} - Episode ${idx} Ingest` : `${subject} - Episode Ingest`; desc = `Single-item episode ingest for ${subject}.`; }
+        else { subject = t || humanize(pExt) || humanize(ext) || type; name = `${subject} - ${type === 'TRAILER' ? 'Trailer' : 'Extra'} Ingest`; desc = `Single-item ${type.toLowerCase()} ingest for ${subject}.`; }
+
+        // Max 50 chars constraint with ellipsis
+        if (name.length > 50) {
+          const suffixIndex = name.lastIndexOf(' - ');
+          if (suffixIndex !== -1) {
+            const suffix = name.substring(suffixIndex);
+            const maxSubj = 50 - suffix.length - 3;
+            name = subject.substring(0, maxSubj) + '...' + suffix;
+          } else {
+            name = name.substring(0, 47) + '...';
+          }
+        }
+
+        if (!dirtyName) inputs.doc_name.value = name;
+        if (!dirtyDesc) inputs.doc_desc.value = desc;
+      }
+
+      function clearForm() {
+        inputs.program_type.value = 'MOVIE'; inputs.ingest_mode.value = 'SIMPLE';
+        Object.keys(inputs).forEach(k => {
+          if (['program_type', 'ingest_mode'].includes(k)) return;
+          if (inputs[k].multiple) Array.from(inputs[k].options).forEach(o => o.selected = false);
+          else inputs[k].value = '';
+        });
+        el('single-document-created-display').value = "Auto-stamped when JSON is generated";
+        dirtyName = false; dirtyDesc = false;
+        refreshUI(); setStatus('Ready.', ''); renderEmptyJSON();
+        el('download-json').disabled = true; el('copy-json').disabled = true;
+      }
+
+      /** --- TIMESTAMP HELPER --- */
+      function getLocalIsoString() {
+        const pad = (n, l=2) => String(n).padStart(l, '0');
+        const d = new Date();
+        const tzo = -d.getTimezoneOffset();
+        const dif = tzo >= 0 ? '+' : '-';
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}${dif}${pad(Math.floor(Math.abs(tzo) / 60))}:${pad(Math.abs(tzo) % 60)}`;
+      }
+
+      /** --- JSON SYNTAX HIGHLIGHTER (Vibrant Style) --- */
+      function syntaxHighlight(jsonStr) {
+        jsonStr = jsonStr.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return jsonStr.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+          let cls = 'json-number';
+          if (/^"/.test(match)) {
+            if (/:$/.test(match)) {
+              return `<span class="json-key">${match.slice(0, -1)}</span>:`;
+            } else { cls = 'json-string'; }
+          } else if (/true|false/.test(match)) { cls = 'json-boolean'; }
+          else if (/null/.test(match)) { cls = 'json-null'; }
+          return `<span class="${cls}">${match}</span>`;
+        });
+      }
+
+      function renderEmptyJSON() {
+        currentJSON = "";
+        el('json-output').innerHTML = syntaxHighlight(`{\n  "name": "Axinom Ingest",\n  "items": []\n}`);
+      }
+
+      function generate() {
+        const type = inputs.program_type.value; const mode = inputs.ingest_mode.value;
+        
+        // Document Name validation length check
+        if (!inputs.doc_name.value) return setStatus('Error: Document Name is required.', 'error');
+        if (inputs.doc_name.value.length > 50) return setStatus('Error: Document Name cannot exceed 50 characters.', 'error');
+        
+        const reqBase = REQUIRED.BACKEND[type] || [];
+        const reqFront = (mode === 'SIMPLE' && REQUIRED.FRONTEND_SIMPLE[type]) ? REQUIRED.FRONTEND_SIMPLE[type] : [];
+        const visible = FIELDS[mode][type] || [];
+        for (let k of [...reqBase, ...reqFront]) {
+          if (k === 'external_id' && !inputs.external_id.value.trim()) return setStatus(`Error: External ID is required.`, 'error');
+          if (visible.includes(k) && !inputs[k].value.trim()) return setStatus(`Error: ${k} is required.`, 'error');
+        }
+
+        let data = {};
+        const addStr = (f, v) => { if (visible.includes(f) && v) data[f] = v; };
+        ['title', 'original_title', 'description', 'synopsis', 'studio', 'parent_external_id'].forEach(k => addStr(k, inputs[k].value.trim()));
+        
+        if (visible.includes('released') && inputs.released.value) data.released = inputs.released.value;
+        if (visible.includes('index') && inputs.index.value) data.index = parseInt(inputs.index.value, 10);
+        if (visible.includes('parent_type') && inputs.parent_type.value) data.parent_type = inputs.parent_type.value;
+
+        ['tags', 'genres', 'cast'].forEach(k => {
+          if (visible.includes(k) && inputs[k].value) {
+            const arr = inputs[k].value.split(/[,;\n]/).map(s => s.trim()).filter(s => s);
+            if (arr.length) data[k] = arr;
+          }
+        });
+
+        if (visible.includes('production_countries')) {
+          const pc = Array.from(inputs.production_countries.selectedOptions).map(o => o.value);
+          if (pc.length) data.production_countries = pc;
+        }
+
+        if (visible.includes('license_start') || visible.includes('license_end') || visible.includes('license_countries')) {
+          const ls = inputs.license_start.value ? `${inputs.license_start.value}:00.000+00:00` : null;
+          const le = inputs.license_end.value ? `${inputs.license_end.value}:00.000+00:00` : null;
+          const lc = Array.from(inputs.license_countries.selectedOptions).map(o => o.value);
+          if (ls || le || lc.length) {
+            let lic = {}; if (ls) lic.start = ls; if (le) lic.end = le; if (lc.length) lic.countries = lc;
+            data.licenses = [lic];
+          }
+        }
+
+        if (visible.includes('video_source') && inputs.video_source.value) {
+          data.main_video = { source: inputs.video_source.value.trim() };
+          if (inputs.video_profile.value) data.main_video.profile = inputs.video_profile.value.trim();
+        }
+
+        if (visible.includes('trailer_source') && inputs.trailer_source.value && type !== 'TRAILER') {
+          let t = { source: inputs.trailer_source.value.trim() };
+          if (inputs.trailer_profile.value) t.profile = inputs.trailer_profile.value.trim();
+          data.trailers = [t];
+        }
+
+        let imgs = [];
+        if (visible.includes('cover_image') && inputs.cover_image.value) imgs.push({ path: inputs.cover_image.value.trim(), type: 'COVER' });
+        if (visible.includes('teaser_image') && inputs.teaser_image.value) imgs.push({ path: inputs.teaser_image.value.trim(), type: 'TEASER' });
+        if (imgs.length) data.images = imgs;
+
+        // Generate Time based on local TZ offset
+        const localCreatedTime = getLocalIsoString();
+
+        const doc = {
+          name: inputs.doc_name.value.trim(),
+          ...(inputs.doc_desc.value.trim() ? { description: inputs.doc_desc.value.trim() } : {}),
+          items: [{ type: type, external_id: inputs.external_id.value.trim(), data: data }],
+          document_created: localCreatedTime,
+          helper_version: "v2.0.0"
+        };
+
+        const rawJSON = JSON.stringify(doc, null, 2);
+        currentJSON = rawJSON;
+        el('json-output').innerHTML = syntaxHighlight(rawJSON);
+        
+        // Update the visual textbox so the user knows what time was injected
+        el('single-document-created-display').value = localCreatedTime;
+
+        el('download-json').disabled = false;
+        el('copy-json').disabled = false;
+        setStatus('Successfully generated JSON document.', 'ok');
+      }
+
+      function setStatus(msg, type) {
+        const s = el('status'); s.textContent = msg; s.className = 'status ' + (type || '');
+      }
+
+      function downloadJSON() {
+        if (!currentJSON) return;
+        const name = (inputs.doc_name.value.replace(/[<>:"/\\|?*]/g, '-').replace(/\s+/g, '_') || 'ingest') + '.json';
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([currentJSON], { type: 'application/json' }));
+        a.download = name; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      }
+
+      function copyJSON() {
+        if (!currentJSON) return;
+        navigator.clipboard.writeText(currentJSON).then(() => setStatus('Copied JSON to clipboard!', 'ok'));
+      }
+
+      init();
+    </script>
+  </body>
+</html>
