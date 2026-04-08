@@ -3,5 +3,4 @@
 __pycache__/
 *.pyc
 .venv-template/
-release/macos/build/
-release/macos/dist/
+release/
