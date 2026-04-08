@@ -4,9 +4,9 @@ Current direction: static web app.
 
 ## Active Source
 
-- `site/index.html`: self-contained static application
+- `index.html`: self-contained static application entrypoint
 - `site/icon.png`: icon used by the site
-- `site/README.md`: site-specific notes
+- `site/README.md`: site-specific notes for supporting site assets
 
 ## Reference Material
 
@@ -23,7 +23,7 @@ If older implementation details are needed, use git history and prior tags.
 ## Local Preview
 
 ```bash
-python3 -m http.server 8080 -d site
+python3 -m http.server 8080
 ```
 
 Open:

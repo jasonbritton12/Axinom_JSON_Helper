@@ -3,7 +3,7 @@
 Current static-web direction for the Axinom Ingest JSON Helper.
 
 Files:
-- `site/index.html`: self-contained `v2.0.0` single-page app
+- `index.html`: self-contained static single-page app entrypoint at repo root
 - `site/icon.png`: icon referenced by the page header
 
 This site is intentionally standalone and is now the primary app implementation in the repository.
