@@ -5,6 +5,7 @@ Current direction: static web app.
 ## Active Source
 
 - `index.html`: self-contained static application entrypoint
+- `site/app.js`: browser-side logic for the static application
 - `site/icon.png`: icon used by the site
 - `site/README.md`: site-specific notes for supporting site assets
 
@@ -32,4 +33,4 @@ Open:
 
 ## Releases
 
-Static-site releases are published from the `site/` source and may include downloadable bundles such as the `v2.0.0` release assets.
+Static-site releases are published from the `site/` source and may include downloadable bundles for the current static release line.
