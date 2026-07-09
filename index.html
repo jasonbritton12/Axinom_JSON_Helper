@@ -235,6 +235,15 @@
       label { display: grid; gap: 0.3rem; font-size: 0.84rem; color: var(--muted); min-width: 0; }
       .label-text { font-weight: 500; }
       .field-note { font-size: 0.74rem; color: var(--helper); }
+      .char-count { font-size: 0.72rem; color: var(--helper); font-weight: 700; }
+      .char-count.is-over-limit { color: var(--error); }
+      label.is-over-limit .label-text,
+      label.is-over-limit .field-note { color: var(--error); }
+      input.is-over-limit,
+      textarea.is-over-limit {
+        border-color: var(--error);
+        box-shadow: 0 0 0 2px rgba(255, 154, 154, 0.22);
+      }
       label.is-required .label-text { font-weight: 700; color: var(--required-label); }
       label.is-required .label-text::after { content: " *"; color: var(--required-star); font-weight: 800; }
       .hidden-field { display: none !important; }
@@ -456,7 +465,7 @@
             Use Light Theme
           </button>
         </div>
-        <p class="release-meta">Release: <span id="app-release">v2.0.2</span></p>
+        <p class="release-meta">Release: <span id="app-release">v2.1.0</span></p>
       </section>
 
       <section class="card tabs-card">
@@ -469,7 +478,7 @@
         <!-- SINGLE TAB -->
         <div id="tab-single" class="tab-panel is-active" role="tabpanel">
           <h2>Single Item Builder</h2>
-          <p class="helper">`Simple` mode shows minimum ingest fields. `TRAILER` and `EXTRA` are first-class types in this schema and require a parent external ID.</p>
+          <p class="helper">`Simple` mode shows minimum ingest fields. `PODCAST`, `TRAILER`, and `EXTRA` are first-class types in this schema; trailers and extras require a parent external ID.</p>
 
           <div class="grid three">
             <label>
@@ -480,7 +489,7 @@
             </label>
             <label>
               <span class="label-text">Document Description</span>
-              <span class="field-note">Auto-filled from item metadata. You can still edit it.</span>
+              <span class="field-note">Recommended max 150 characters including spaces. <span id="single-description-count" class="char-count">0/150</span></span>
               <input id="single-description" type="text" placeholder="Optional ingest batch description" />
             </label>
             <label>
@@ -496,6 +505,7 @@
               <select id="field-program_type">
                 <option value="MOVIE" selected>MOVIE</option>
                 <option value="TVSHOW">TVSHOW</option>
+                <option value="PODCAST">PODCAST</option>
                 <option value="SEASON">SEASON</option>
                 <option value="EPISODE">EPISODE</option>
                 <option value="TRAILER">TRAILER</option>
@@ -521,7 +531,7 @@
             <label data-field="title"><span class="label-text">Title</span><input id="field-title" type="text" placeholder="Avatar" /></label>
             <label data-field="original_title"><span class="label-text">Original Title</span><input id="field-original_title" type="text" /></label>
             <label data-field="released"><span class="label-text">Released Date</span><input id="field-released" type="date" /></label>
-            <label data-field="description"><span class="label-text">Description</span><textarea id="field-description"></textarea></label>
+            <label data-field="description"><span class="label-text">Description</span><span class="field-note">Recommended max 150 characters including spaces. <span id="field-description-count" class="char-count">0/150</span></span><textarea id="field-description"></textarea></label>
             <label data-field="synopsis"><span class="label-text">Synopsis</span><textarea id="field-synopsis"></textarea></label>
             <label data-field="studio"><span class="label-text">Studio</span><input id="field-studio" type="text" /></label>
             <label data-field="index"><span class="label-text" id="lbl-index">Index</span><input id="field-index" type="number" min="1" /></label>
@@ -557,6 +567,7 @@
             </label>
             <label>
               <span class="label-text">Document Description</span>
+              <span class="field-note">Recommended max 150 characters including spaces. <span id="bulk-description-count" class="char-count">0/150</span></span>
               <input id="bulk-description" type="text" placeholder="Optional ingest batch description" />
             </label>
             <label>
@@ -574,7 +585,7 @@
             <label>
               <span class="label-text">Template Version</span>
               <select id="bulk-template-version">
-                <option value="current" selected>v2.0.2</option>
+                <option value="current" selected>v2.1.0</option>
               </select>
             </label>
           </div>
@@ -601,6 +612,7 @@
             </label>
             <label>
               <span class="label-text">Document Description</span>
+              <span class="field-note">Recommended max 150 characters including spaces. <span id="direct-description-count" class="char-count">0/150</span></span>
               <input id="direct-description" type="text" placeholder="Optional ingest batch description" />
             </label>
             <label>
@@ -613,7 +625,7 @@
             <label>
               <span class="label-text">Template Version</span>
               <select id="direct-template-version">
-                <option value="current" selected>v2.0.2</option>
+                <option value="current" selected>v2.1.0</option>
               </select>
             </label>
           </div>
@@ -643,9 +655,9 @@
 
       <datalist id="video-profile-list">
         <option value="CMAF_File_Non-DRM"></option>
-        <option value="CMAF_File_DRM"></option>
-        <option value="CMAF_File_Non-DRM_SD"></option>
-        <option value="CMAF_File_DRM_SD"></option>
+        <option value="HLS-DASH_DRM"></option>
+        <option value="LAS_CMAF_File_Non-DRM"></option>
+        <option value="LAS_HLS-DASH_DRM"></option>
       </datalist>
 
       <datalist id="country-code-list">

@@ -1,33 +1,37 @@
-const APP_RELEASE_LABEL = "v2.0.2";
-const HELPER_VERSION = "v2.0.2";
+const APP_RELEASE_LABEL = "v2.1.0";
+const HELPER_VERSION = "v2.1.0";
 const DOCUMENT_NAME_MAX_LENGTH = 50;
+const DESCRIPTION_WARN_LENGTH = 150;
 const THEME_STORAGE_KEY = "axinom_ingest_theme";
 
-const PROGRAM_TYPES = ["MOVIE", "TVSHOW", "SEASON", "EPISODE", "TRAILER", "EXTRA"];
+const PROGRAM_TYPES = ["MOVIE", "TVSHOW", "PODCAST", "SEASON", "EPISODE", "TRAILER", "EXTRA"];
 const VIDEO_PROFILES = [
   "CMAF_File_Non-DRM",
-  "CMAF_File_DRM",
-  "CMAF_File_Non-DRM_SD",
-  "CMAF_File_DRM_SD",
+  "HLS-DASH_DRM",
+  "LAS_CMAF_File_Non-DRM",
+  "LAS_HLS-DASH_DRM",
 ];
 const COMMON_COUNTRY_CODES = ["US", "CA"];
 const TEMPLATE_FILES = {
-  latest: "docs/reference/axinom_ingest_template_v2_0_2.xlsx",
-  current: "docs/reference/axinom_ingest_template_v2_0_2.xlsx",
+  latest: "docs/reference/axinom_ingest_template_v2_1_0.xlsx",
+  current: "docs/reference/axinom_ingest_template_v2_1_0.xlsx",
 };
 
 const PROGRAM_TYPE_CONFIG = {
   MOVIE: { ingestType: "MOVIE", required: ["external_id", "title"], allowedParentTypes: [] },
   TVSHOW: { ingestType: "TVSHOW", required: ["external_id", "title"], allowedParentTypes: [] },
+  PODCAST: { ingestType: "PODCAST", required: ["external_id", "title"], allowedParentTypes: [] },
   SEASON: { ingestType: "SEASON", required: ["external_id", "index", "parent_external_id"], allowedParentTypes: ["TVSHOW"] },
   EPISODE: { ingestType: "EPISODE", required: ["external_id", "title", "index", "parent_external_id"], allowedParentTypes: ["SEASON"] },
-  TRAILER: { ingestType: "TRAILER", required: ["external_id", "title", "parent_type", "parent_external_id"], allowedParentTypes: ["MOVIE", "TVSHOW", "SEASON", "EPISODE", "EXTRA"] },
-  EXTRA: { ingestType: "EXTRA", required: ["external_id", "title", "parent_type", "parent_external_id"], allowedParentTypes: ["MOVIE", "TVSHOW"] },
+  TRAILER: { ingestType: "TRAILER", required: ["external_id", "title", "parent_type", "parent_external_id"], allowedParentTypes: ["MOVIE", "TVSHOW", "PODCAST", "SEASON", "EPISODE", "EXTRA"] },
+  EXTRA: { ingestType: "EXTRA", required: ["external_id", "title", "parent_type", "parent_external_id"], allowedParentTypes: ["MOVIE", "TVSHOW", "PODCAST"] },
 };
 
 const TYPE_ALIASES = {
   MOVIE: "MOVIE",
   TVSHOW: "TVSHOW",
+  PODCAST: "PODCAST",
+  PODCASTS: "PODCAST",
   SEASON: "SEASON",
   EPISODE: "EPISODE",
   TRAILER: "TRAILER",
@@ -46,6 +50,7 @@ const TYPE_ALIASES = {
 const FULL_FIELD_VISIBILITY = {
   MOVIE: new Set(["title", "original_title", "description", "synopsis", "released", "studio", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "video_source", "video_profile", "cover_image", "teaser_image"]),
   TVSHOW: new Set(["title", "original_title", "description", "synopsis", "released", "studio", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "cover_image", "teaser_image"]),
+  PODCAST: new Set(["title", "original_title", "description", "synopsis", "released", "studio", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "cover_image", "teaser_image"]),
   SEASON: new Set(["description", "synopsis", "released", "studio", "index", "parent_external_id", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "cover_image", "teaser_image"]),
   EPISODE: new Set(["title", "original_title", "description", "synopsis", "released", "studio", "index", "parent_external_id", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "video_source", "video_profile", "cover_image", "teaser_image"]),
   TRAILER: new Set(["title", "original_title", "description", "synopsis", "released", "studio", "parent_type", "parent_external_id", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "video_source", "video_profile", "cover_image", "teaser_image"]),
@@ -55,6 +60,7 @@ const FULL_FIELD_VISIBILITY = {
 const SIMPLE_FIELD_VISIBILITY = {
   MOVIE: new Set(["title", "video_source", "video_profile"]),
   TVSHOW: new Set(["title"]),
+  PODCAST: new Set(["title"]),
   SEASON: new Set(["index", "parent_external_id"]),
   EPISODE: new Set(["title", "index", "parent_external_id", "video_source", "video_profile"]),
   TRAILER: new Set(["title", "parent_type", "parent_external_id", "video_source", "video_profile"]),
@@ -177,10 +183,10 @@ function normalizeString(value) {
 
 function sanitizeFilenameStem(value) {
   const sanitized = normalizeString(value)
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "-")
+    .replace(/[^A-Za-z0-9]+/g, "_")
     .replace(/\s+/g, "_")
     .replace(/_+/g, "_")
-    .replace(/^[-_.]+|[-_.]+$/g, "");
+    .replace(/^_+|_+$/g, "");
   return sanitized || "axinom-ingest";
 }
 
@@ -267,6 +273,44 @@ function setStatus(message, kind = "") {
   const status = byId("status");
   status.textContent = message;
   status.className = `status${kind ? ` ${kind}` : ""}`;
+}
+
+function descriptionLength(value) {
+  return typeof value === "string" ? value.length : String(value || "").length;
+}
+
+function descriptionWarning(value, label = "Description") {
+  const count = descriptionLength(value);
+  return count > DESCRIPTION_WARN_LENGTH
+    ? `${label} is ${count}/${DESCRIPTION_WARN_LENGTH} characters. Axinom descriptions should be ${DESCRIPTION_WARN_LENGTH} characters or fewer.`
+    : "";
+}
+
+function updateDescriptionCounter(input, counter, label = null) {
+  if (!input || !counter) {
+    return;
+  }
+  const count = descriptionLength(input.value);
+  const isOver = count > DESCRIPTION_WARN_LENGTH;
+  counter.textContent = `${count}/${DESCRIPTION_WARN_LENGTH}`;
+  counter.classList.toggle("is-over-limit", isOver);
+  input.classList.toggle("is-over-limit", isOver);
+  const fieldLabel = input.closest?.("label");
+  if (fieldLabel) {
+    fieldLabel.classList.toggle("is-over-limit", isOver);
+  }
+  if (label && isOver) {
+    input.title = descriptionWarning(input.value, label);
+  } else if (label) {
+    input.removeAttribute("title");
+  }
+}
+
+function updateAllDescriptionCounters() {
+  updateDescriptionCounter(byId("single-description"), byId("single-description-count"), "Document Description");
+  updateDescriptionCounter(byId("field-description"), byId("field-description-count"), "Description");
+  updateDescriptionCounter(byId("bulk-description"), byId("bulk-description-count"), "Document Description");
+  updateDescriptionCounter(byId("direct-description"), byId("direct-description-count"), "Document Description");
 }
 
 function updateDocumentMetaDisplay(prefix, createdValue = "") {
@@ -469,7 +513,12 @@ function updateVisibleFields() {
   document.querySelectorAll("#single-fields-grid [data-field]").forEach((node) => {
     node.classList.toggle("hidden-field", !visible.has(node.dataset.field));
   });
+  const videoProfile = byId("field-video_profile");
+  if (visible.has("video_profile") && videoProfile && !normalizeString(videoProfile.value)) {
+    videoProfile.value = VIDEO_PROFILES[0] || "";
+  }
   updateRequiredFieldStyles();
+  updateAllDescriptionCounters();
 }
 
 function readInputValue(node) {
@@ -532,14 +581,11 @@ function padIndexLabel(value) {
   return Number.isFinite(parsed) ? padTwoDigits(parsed) : normalized;
 }
 
-function truncateWithEllipsis(value, maxLength) {
+function truncateWithoutEllipsis(value, maxLength) {
   if (value.length <= maxLength) {
     return value;
   }
-  if (maxLength <= 3) {
-    return value.slice(0, maxLength);
-  }
-  return `${value.slice(0, maxLength - 3).trimEnd()}...`;
+  return value.slice(0, Math.max(0, maxLength)).trimEnd();
 }
 
 function buildDocumentName(subject, suffix) {
@@ -547,9 +593,9 @@ function buildDocumentName(subject, suffix) {
   const cleanSuffix = normalizeString(suffix) || "Ingest";
   const reserved = ` - ${cleanSuffix}`;
   if (reserved.length >= DOCUMENT_NAME_MAX_LENGTH) {
-    return truncateWithEllipsis(`${cleanSubject}${reserved}`, DOCUMENT_NAME_MAX_LENGTH);
+    return truncateWithoutEllipsis(`${cleanSubject}${reserved}`, DOCUMENT_NAME_MAX_LENGTH);
   }
-  return `${truncateWithEllipsis(cleanSubject, DOCUMENT_NAME_MAX_LENGTH - reserved.length)}${reserved}`;
+  return `${truncateWithoutEllipsis(cleanSubject, DOCUMENT_NAME_MAX_LENGTH - reserved.length)}${reserved}`;
 }
 
 function documentSubjectFromFields(fields) {
@@ -563,6 +609,9 @@ function documentSubjectFromFields(fields) {
   }
   if (programType === "TVSHOW") {
     return title || humanizeIdentifier(externalId) || "TV Show";
+  }
+  if (programType === "PODCAST") {
+    return title || humanizeIdentifier(externalId) || "Podcast";
   }
   if (programType === "SEASON") {
     return humanizeIdentifier(parentExternalId) || title || humanizeIdentifier(externalId) || "TV Show";
@@ -587,6 +636,9 @@ function suggestDocumentMetadataForFields(fields) {
   }
   if (programType === "TVSHOW") {
     return { name: buildDocumentName(subject, "TV Show Ingest"), description: `Single-item TV show ingest for ${subject}.` };
+  }
+  if (programType === "PODCAST") {
+    return { name: buildDocumentName(subject, "Podcast Ingest"), description: `Single-item podcast ingest for ${subject}.` };
   }
   if (programType === "SEASON") {
     return {
@@ -689,6 +741,7 @@ function syncSingleDocumentMetadata(force = false) {
     state.singleDescriptionDirty = false;
   }
 
+  updateAllDescriptionCounters();
   setCurrentDownloadName(nameInput.value || "axinom-ingest");
 }
 
@@ -722,6 +775,7 @@ async function syncBulkDocumentMetadata(force = false) {
     descriptionInput.value = suggestions.description;
   }
   state.autoSyncingDocumentMetadata = false;
+  updateAllDescriptionCounters();
 }
 
 function syncDirectDocumentMetadata(force = false) {
@@ -737,6 +791,7 @@ function syncDirectDocumentMetadata(force = false) {
     descriptionInput.value = suggestions.description;
   }
   state.autoSyncingDocumentMetadata = false;
+  updateAllDescriptionCounters();
 }
 
 function formatDocumentNameError(name) {
@@ -804,6 +859,52 @@ function buildValidatedDate(year, month, day) {
     return null;
   }
   return `${year}-${padTwoDigits(month)}-${padTwoDigits(day)}`;
+}
+
+function parseExcelSerial(value) {
+  const text = normalizeString(value);
+  if (!/^\d{1,7}(?:\.\d+)?$/.test(text)) {
+    return null;
+  }
+  const serial = Number(text);
+  if (!Number.isFinite(serial) || serial < 10000 || serial > 2958465) {
+    return null;
+  }
+  return serial;
+}
+
+function excelSerialToDate(serial, date1904 = false) {
+  const dayMs = 24 * 60 * 60 * 1000;
+  const base = date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30);
+  return new Date(base + Math.round(serial * dayMs));
+}
+
+function excelSerialHasTime(serial) {
+  return Math.abs(serial - Math.trunc(serial)) > 0.000001;
+}
+
+function excelSerialToDateOnly(value, date1904 = false) {
+  const serial = parseExcelSerial(value);
+  if (serial === null) {
+    return "";
+  }
+  const date = excelSerialToDate(Math.trunc(serial), date1904);
+  return `${date.getUTCFullYear()}-${padTwoDigits(date.getUTCMonth() + 1)}-${padTwoDigits(date.getUTCDate())}`;
+}
+
+function excelSerialToUtcDateTime(value, boundary = "start", date1904 = false) {
+  const serial = parseExcelSerial(value);
+  if (serial === null) {
+    return "";
+  }
+  if (!excelSerialHasTime(serial)) {
+    const dateOnly = excelSerialToDateOnly(serial, date1904);
+    return boundary === "end"
+      ? `${dateOnly}T23:59:59.999+00:00`
+      : `${dateOnly}T00:00:00.000+00:00`;
+  }
+  const date = excelSerialToDate(serial, date1904);
+  return `${date.getUTCFullYear()}-${padTwoDigits(date.getUTCMonth() + 1)}-${padTwoDigits(date.getUTCDate())}T${padTwoDigits(date.getUTCHours())}:${padTwoDigits(date.getUTCMinutes())}:${padTwoDigits(date.getUTCSeconds())}.${String(date.getUTCMilliseconds()).padStart(3, "0")}+00:00`;
 }
 
 function parseDateValue(value) {
@@ -1012,7 +1113,7 @@ function buildItem(fields) {
   const parentType = normalizeProgramType(fields.parent_type);
   const data = buildData(fields);
 
-  if (ingestType === "TVSHOW" || ingestType === "SEASON") {
+  if (ingestType === "TVSHOW" || ingestType === "PODCAST" || ingestType === "SEASON") {
     delete data.main_video;
   }
   if (ingestType === "TRAILER") {
@@ -1164,6 +1265,7 @@ function typeNoun(programType, plural = true) {
   const singular = {
     MOVIE: "Movie",
     TVSHOW: "TV show",
+    PODCAST: "Podcast",
     SEASON: "Season",
     EPISODE: "Episode",
     TRAILER: "Trailer",
@@ -1178,6 +1280,7 @@ function sheetErrorFieldCandidates(field) {
     program_type: ["assettype", "programtype"],
     external_id: ["externalid", "titlealternateid", "guid", "series", "id"],
     title: ["title"],
+    description: ["description"],
     index: ["seasonepnumber", "seasonepisodeindex", "episodenumber", "seasonnumber"],
     parent_type: ["parenttype"],
     parent_external_id: ["parentexternalid"],
@@ -1236,6 +1339,10 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
   const items = [];
   const warnings = [];
   const rowErrors = [];
+  const documentDescriptionWarning = descriptionWarning(documentDescription, "Document Description");
+  if (documentDescriptionWarning) {
+    warnings.push(documentDescriptionWarning);
+  }
 
   rows.forEach((row, index) => {
     const rowNumber = rowNumbers[index] || index + 2;
@@ -1244,6 +1351,12 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
 
     if (!Object.values(fields).some((value) => normalizeString(value))) {
       return;
+    }
+
+    const rowDescriptionWarning = descriptionWarning(fields.description, "Description");
+    if (rowDescriptionWarning) {
+      const descriptionCell = sheetErrorCellRef("description", rowCellMap);
+      warnings.push(descriptionCell ? `${descriptionCell}: ${rowDescriptionWarning}` : `Row ${rowNumber}: ${rowDescriptionWarning}`);
     }
 
     const buildResult = buildItem(fields);
@@ -1366,8 +1479,14 @@ function generateSingle() {
   renderDocument(document);
   setCurrentDownloadName(document.name);
 
-  if (buildResult.warnings.length) {
-    setStatus(`Generated with warning(s): ${buildResult.warnings.join(" | ")}`, "warn");
+  const warnings = [
+    descriptionWarning(payload.description, "Document Description"),
+    descriptionWarning(payload.fields.description, "Description"),
+    ...buildResult.warnings,
+  ].filter(Boolean);
+
+  if (warnings.length) {
+    setStatus(`Generated with warning(s): ${warnings.join(" | ")}`, "warn");
     return;
   }
 
@@ -1396,6 +1515,7 @@ function clearSingle() {
 
   byId("single-description").value = "";
   updateAllDocumentMetaDisplays();
+  updateAllDescriptionCounters();
   syncSingleDocumentMetadata(true);
   updateRequiredHint();
   updateVisibleFields();
@@ -1589,6 +1709,19 @@ function createCountryPickerWidget(initialValue = "") {
   return wrapper;
 }
 
+function updateDirectDescriptionInput(input) {
+  if (!input) {
+    return;
+  }
+  const warning = descriptionWarning(input.value, "Description");
+  input.classList.toggle("is-over-limit", Boolean(warning));
+  if (warning) {
+    input.title = warning;
+  } else {
+    input.removeAttribute("title");
+  }
+}
+
 function createCellInput(columnName, initialValue = "") {
   const config = directInputConfig(columnName);
 
@@ -1616,6 +1749,10 @@ function createCellInput(columnName, initialValue = "") {
   }
   if (config.list) {
     input.setAttribute("list", config.list);
+  }
+  if (columnName === "Description") {
+    input.placeholder = `Max ${DESCRIPTION_WARN_LENGTH} chars`;
+    updateDirectDescriptionInput(input);
   }
   if (columnName === "License Start (UTC)") {
     bindDefaultDateTimeLocalTime(input, 21, 0);
@@ -1676,8 +1813,18 @@ function appendDirectRow(initialValues = {}) {
       : [...control.querySelectorAll("input, select, textarea")];
 
     eventTargets.forEach((target) => {
-      target.addEventListener("input", () => syncDirectDocumentMetadata());
-      target.addEventListener("change", () => syncDirectDocumentMetadata());
+      target.addEventListener("input", () => {
+        if (column === "Description") {
+          updateDirectDescriptionInput(target);
+        }
+        syncDirectDocumentMetadata();
+      });
+      target.addEventListener("change", () => {
+        if (column === "Description") {
+          updateDirectDescriptionInput(target);
+        }
+        syncDirectDocumentMetadata();
+      });
     });
 
     if (column === "Asset Type") {
@@ -1959,6 +2106,16 @@ function parseWorkbookSheets(entries) {
   }).filter(Boolean);
 }
 
+function parseWorkbookDate1904(entries) {
+  const workbookBytes = entries.get("xl/workbook.xml");
+  if (!workbookBytes) {
+    return false;
+  }
+  const workbookDoc = xmlDocument(workbookBytes);
+  const workbookPr = [...workbookDoc.getElementsByTagNameNS("*", "workbookPr")][0];
+  return workbookPr?.getAttribute("date1904") === "1";
+}
+
 function cellValue(cell, sharedStrings) {
   const cellType = cell.getAttribute("t");
   if (cellType === "inlineStr") {
@@ -2012,7 +2169,21 @@ function parseSheetRows(entries, sheetPath, sharedStrings) {
   return rawRows;
 }
 
-function extractHeaderAndRecords(rawRows) {
+function normalizeSheetCellValue(header, value, { date1904 = false } = {}) {
+  const field = HEADER_TO_FIELD[normalizeHeader(header)];
+  if (field === "released") {
+    return excelSerialToDateOnly(value, date1904) || normalizeString(value);
+  }
+  if (field === "license_start") {
+    return excelSerialToUtcDateTime(value, "start", date1904) || normalizeString(value);
+  }
+  if (field === "license_end") {
+    return excelSerialToUtcDateTime(value, "end", date1904) || normalizeString(value);
+  }
+  return normalizeString(value);
+}
+
+function extractHeaderAndRecords(rawRows, workbookOptions = {}) {
   if (!rawRows.length) {
     return { headers: [], records: [], rowNumbers: [], rowCells: [], headerCells: {} };
   }
@@ -2041,7 +2212,7 @@ function extractHeaderAndRecords(rawRows) {
       if (!header) {
         return;
       }
-      const value = normalizeString(values.get(columnIndex));
+      const value = normalizeSheetCellValue(header, values.get(columnIndex), workbookOptions);
       row[header] = value;
       cellMap[header] = `${indexToCol(columnIndex)}${rowNumber}`;
     });
@@ -2059,6 +2230,7 @@ function extractHeaderAndRecords(rawRows) {
 async function parseXlsxRows(file, preferredSheetName = "") {
   const entries = await unzipEntries(await file.arrayBuffer());
   const sheets = parseWorkbookSheets(entries);
+  const date1904 = parseWorkbookDate1904(entries);
   if (!sheets.length) {
     throw new Error("No sheets found in workbook.");
   }
@@ -2073,7 +2245,7 @@ async function parseXlsxRows(file, preferredSheetName = "") {
 
   const sharedStrings = parseSharedStrings(entries);
   const rawRows = parseSheetRows(entries, selectedSheet.target, sharedStrings);
-  const extracted = extractHeaderAndRecords(rawRows);
+  const extracted = extractHeaderAndRecords(rawRows, { date1904 });
 
   return {
     sheetName: selectedSheet.name,
@@ -2188,7 +2360,10 @@ function bindEvents() {
     if (!state.singleDescriptionDirty) {
       syncSingleDocumentMetadata();
     }
+    updateAllDescriptionCounters();
   });
+
+  byId("field-description").addEventListener("input", updateAllDescriptionCounters);
 
   byId("bulk-name").addEventListener("input", () => {
     if (state.autoSyncingDocumentMetadata) {
@@ -2202,6 +2377,7 @@ function bindEvents() {
       return;
     }
     state.bulkDescriptionDirty = Boolean(normalizeString(byId("bulk-description").value));
+    updateAllDescriptionCounters();
   });
 
   byId("bulk-file").addEventListener("change", () => {
@@ -2224,6 +2400,7 @@ function bindEvents() {
       return;
     }
     state.directDescriptionDirty = Boolean(normalizeString(byId("direct-description").value));
+    updateAllDescriptionCounters();
   });
 
   byId("build-single").addEventListener("click", generateSingle);
@@ -2256,6 +2433,7 @@ function init() {
   syncSingleDocumentMetadata(true);
   void syncBulkDocumentMetadata(true);
   syncDirectDocumentMetadata(true);
+  updateAllDescriptionCounters();
   updateRequiredHint();
   updateVisibleFields();
   renderDocument(null);

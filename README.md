@@ -2,6 +2,8 @@
 
 Current direction: static web app.
 
+Current release line: `v2.1.0`.
+
 ## Active Source
 
 - `index.html`: self-contained static application entrypoint
@@ -12,6 +14,7 @@ Current direction: static web app.
 ## Reference Material
 
 - `docs/reference/`: Axinom schemas, examples, and historical template files
+- `docs/reference/axinom_ingest_template_v2_1_0.xlsx`: current static-site Excel template
 - `docs/app-requirements-v1.5.4.md`: historical requirements snapshot from the pre-static implementation
 - `docs/ux-review-2026-03-26.md`: historical UX review notes
 
