@@ -487,6 +487,10 @@ function updateSingleParentTypeOptions() {
   populateSingleSelect(byId("field-parent_type"), allowedParentTypesFor(programType));
 }
 
+function updateSingleVideoProfileOptions() {
+  populateSingleSelect(byId("field-video_profile"), VIDEO_PROFILES, byId("field-video_profile")?.value);
+}
+
 function updateRequiredFieldStyles() {
   const required = requiredFieldsForSingle(byId("field-program_type").value, currentSingleIngestMode());
   document.querySelectorAll("#tab-single label[data-field]").forEach((label) => {
@@ -1596,7 +1600,7 @@ function directInputConfig(columnName) {
     return { kind: "input", type: "text", list: "country-code-list" };
   }
   if (columnName === "Video Profile") {
-    return { kind: "input", type: "text", list: "video-profile-list" };
+    return { kind: "video-profile-select" };
   }
   return { kind: "input", type: "text" };
 }
@@ -1734,6 +1738,12 @@ function createCellInput(columnName, initialValue = "") {
   if (config.kind === "parent-type-select") {
     const select = document.createElement("select");
     populateSingleSelect(select, [], initialValue);
+    return select;
+  }
+
+  if (config.kind === "video-profile-select") {
+    const select = document.createElement("select");
+    populateSingleSelect(select, VIDEO_PROFILES, initialValue);
     return select;
   }
 
@@ -2425,8 +2435,8 @@ function init() {
   }
 
   applyTheme(resolveInitialTheme());
-  renderDataList("video-profile-list", VIDEO_PROFILES);
   renderDataList("country-code-list", COMMON_COUNTRY_CODES);
+  updateSingleVideoProfileOptions();
   buildDirectTable();
   bindEvents();
   updateAllDocumentMetaDisplays();

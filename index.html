@@ -545,7 +545,7 @@
             <label data-field="license_end"><span class="label-text">License End (UTC)</span><input id="field-license_end" type="datetime-local" /></label>
             <label data-field="license_countries"><span class="label-text">License Countries</span><input id="field-license_countries" type="text" list="country-code-list" placeholder="US, CA" /></label>
             <label data-field="video_source"><span class="label-text">Main Video Source</span><input id="field-video_source" type="text" /></label>
-            <label data-field="video_profile"><span class="label-text">Main Video Profile</span><input id="field-video_profile" type="text" list="video-profile-list" /></label>
+            <label data-field="video_profile"><span class="label-text">Main Video Profile</span><select id="field-video_profile"></select></label>
             <label data-field="cover_image"><span class="label-text">Cover Image</span><input id="field-cover_image" type="text" /></label>
             <label data-field="teaser_image"><span class="label-text">Teaser Image</span><input id="field-teaser_image" type="text" /></label>
           </div>
@@ -652,13 +652,6 @@
           <button id="copy-json" type="button" class="secondary" disabled>Copy JSON</button>
         </div>
       </section>
-
-      <datalist id="video-profile-list">
-        <option value="CMAF_File_Non-DRM"></option>
-        <option value="HLS-DASH_DRM"></option>
-        <option value="LAS_CMAF_File_Non-DRM"></option>
-        <option value="LAS_HLS-DASH_DRM"></option>
-      </datalist>
 
       <datalist id="country-code-list">
         <option value="US"></option>
