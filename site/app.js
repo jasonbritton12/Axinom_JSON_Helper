@@ -160,8 +160,8 @@ const SINGLE_FIELD_IDS = [
 
 const state = {
   currentDocument: null,
-  currentJson: '{\n  "name": "Axinom Ingest",\n  "items": []\n}',
-  currentDownloadName: "axinom-ingest",
+  currentJson: '{\n  "name": "AxinomIngest",\n  "items": []\n}',
+  currentDownloadName: "AxinomIngest",
   theme: "dark",
   singleNameDirty: false,
   singleDescriptionDirty: false,
@@ -181,13 +181,125 @@ function normalizeString(value) {
   return typeof value === "string" ? value.trim() : String(value || "").trim();
 }
 
+function pascalCaseToken(token) {
+  const clean = normalizeString(token).replace(/[^A-Za-z0-9]/g, "");
+  if (!clean) {
+    return "";
+  }
+  if (/^\d+$/.test(clean)) {
+    return clean;
+  }
+  const indexed = clean.match(/^([A-Za-z])(\d+)$/);
+  if (indexed) {
+    return `${indexed[1].toUpperCase()}${indexed[2]}`;
+  }
+  if (/^[A-Z0-9]+$/.test(clean) && clean.length <= 4) {
+    return clean;
+  }
+  if (/^[A-Z0-9]+$/.test(clean)) {
+    return `${clean.charAt(0).toUpperCase()}${clean.slice(1).toLowerCase()}`;
+  }
+  if (/[A-Z]/.test(clean.slice(1))) {
+    return `${clean.charAt(0).toUpperCase()}${clean.slice(1)}`;
+  }
+  return `${clean.charAt(0).toUpperCase()}${clean.slice(1).toLowerCase()}`;
+}
+
+function codeSafeSection(value) {
+  return normalizeString(value)
+    .replace(/['`\u2018\u2019]/g, "")
+    .match(/[A-Za-z0-9]+/g)
+    ?.map(pascalCaseToken)
+    .join("") || "";
+}
+
+function suffixSectionsFromLabel(label) {
+  const tokens = normalizeString(label)
+    .replace(/['`\u2018\u2019]/g, "")
+    .match(/[A-Za-z0-9]+/g) || [];
+  const sections = [];
+  let current = "";
+
+  tokens.forEach((token) => {
+    const safeToken = pascalCaseToken(token);
+    if (!safeToken) {
+      return;
+    }
+    if (/^[A-Z]\d+$/.test(safeToken)) {
+      if (current) {
+        sections.push(current);
+        current = "";
+      }
+      sections.push(safeToken);
+      return;
+    }
+    current += safeToken;
+  });
+
+  if (current) {
+    sections.push(current);
+  }
+  return sections;
+}
+
+function cleanNameSections(sections) {
+  return (sections || [])
+    .map((section) => normalizeString(section).replace(/[^A-Za-z0-9]/g, ""))
+    .filter(Boolean);
+}
+
+function collapseNameSeparators(value) {
+  return normalizeString(value).replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function truncateWithoutEllipsis(value, maxLength) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return value.slice(0, Math.max(0, maxLength));
+}
+
+function joinAndLimitDocumentNameSections(sections, fallback = "AxinomIngest") {
+  const cleanSections = cleanNameSections(sections);
+  if (!cleanSections.length) {
+    cleanSections.push(codeSafeSection(fallback) || "AxinomIngest");
+  }
+
+  let name = collapseNameSeparators(cleanSections.join("_"));
+  if (name.length <= DOCUMENT_NAME_MAX_LENGTH) {
+    return name;
+  }
+
+  if (cleanSections.length === 1) {
+    return truncateWithoutEllipsis(cleanSections[0], DOCUMENT_NAME_MAX_LENGTH) || "AxinomIngest";
+  }
+
+  const suffix = cleanSections.slice(1).join("_");
+  const separatorLength = suffix ? 1 : 0;
+  const subjectMaxLength = DOCUMENT_NAME_MAX_LENGTH - suffix.length - separatorLength;
+  if (subjectMaxLength > 0) {
+    const subject = truncateWithoutEllipsis(cleanSections[0], subjectMaxLength);
+    return collapseNameSeparators(`${subject}_${suffix}`);
+  }
+
+  return truncateWithoutEllipsis(suffix, DOCUMENT_NAME_MAX_LENGTH) || "AxinomIngest";
+}
+
+function sanitizeDocumentName(value, fallback = "AxinomIngest") {
+  const sections = normalizeString(value).split(/_+/).map(codeSafeSection).filter(Boolean);
+  return joinAndLimitDocumentNameSections(sections, fallback);
+}
+
+function normalizeDocumentNameInput(input, fallback) {
+  const safeName = sanitizeDocumentName(input?.value || fallback, fallback);
+  if (input) {
+    input.value = safeName;
+  }
+  return safeName;
+}
+
 function sanitizeFilenameStem(value) {
-  const sanitized = normalizeString(value)
-    .replace(/[^A-Za-z0-9]+/g, "_")
-    .replace(/\s+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
-  return sanitized || "axinom-ingest";
+  return sanitizeDocumentName(value, "AxinomIngest");
 }
 
 function setCurrentDownloadName(value) {
@@ -257,7 +369,7 @@ function renderDocument(document) {
   state.currentDocument = document && typeof document === "object" ? document : null;
   state.currentJson = state.currentDocument
     ? JSON.stringify(state.currentDocument, null, 2)
-    : '{\n  "name": "Axinom Ingest",\n  "items": []\n}';
+    : '{\n  "name": "AxinomIngest",\n  "items": []\n}';
 
   const output = byId("json-output");
   if (output) {
@@ -585,21 +697,10 @@ function padIndexLabel(value) {
   return Number.isFinite(parsed) ? padTwoDigits(parsed) : normalized;
 }
 
-function truncateWithoutEllipsis(value, maxLength) {
-  if (value.length <= maxLength) {
-    return value;
-  }
-  return value.slice(0, Math.max(0, maxLength)).trimEnd();
-}
-
 function buildDocumentName(subject, suffix) {
-  const cleanSubject = normalizeString(subject) || "Axinom";
-  const cleanSuffix = normalizeString(suffix) || "Ingest";
-  const reserved = ` - ${cleanSuffix}`;
-  if (reserved.length >= DOCUMENT_NAME_MAX_LENGTH) {
-    return truncateWithoutEllipsis(`${cleanSubject}${reserved}`, DOCUMENT_NAME_MAX_LENGTH);
-  }
-  return `${truncateWithoutEllipsis(cleanSubject, DOCUMENT_NAME_MAX_LENGTH - reserved.length)}${reserved}`;
+  const subjectSection = codeSafeSection(subject) || "Axinom";
+  const suffixSections = suffixSectionsFromLabel(suffix || "Ingest");
+  return joinAndLimitDocumentNameSections([subjectSection, ...suffixSections]);
 }
 
 function documentSubjectFromFields(fields) {
@@ -626,7 +727,7 @@ function documentSubjectFromFields(fields) {
   if (programType === "TRAILER" || programType === "EXTRA") {
     return title || humanizeIdentifier(parentExternalId) || humanizeIdentifier(externalId) || programType;
   }
-  return title || humanizeIdentifier(externalId) || "Axinom Ingest";
+  return title || humanizeIdentifier(externalId) || "Axinom";
 }
 
 function suggestDocumentMetadataForFields(fields) {
@@ -687,12 +788,12 @@ function suggestSingleDocumentMetadata() {
 function defaultBatchMetadata(mode) {
   if (mode === "bulk") {
     return {
-      name: "Axinom Bulk Ingest",
+      name: buildDocumentName("Axinom", "Bulk Ingest"),
       description: "Bulk ingest converted from the current workbook.",
     };
   }
   return {
-    name: "Axinom Direct Sheet Ingest",
+    name: buildDocumentName("Axinom", "Direct Sheet Ingest"),
     description: "Direct sheet ingest built from the current row set.",
   };
 }
@@ -746,7 +847,7 @@ function syncSingleDocumentMetadata(force = false) {
   }
 
   updateAllDescriptionCounters();
-  setCurrentDownloadName(nameInput.value || "axinom-ingest");
+  setCurrentDownloadName(nameInput.value || "AxinomIngest");
 }
 
 async function syncBulkDocumentMetadata(force = false) {
@@ -1343,6 +1444,7 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
   const items = [];
   const warnings = [];
   const rowErrors = [];
+  const safeDocumentName = sanitizeDocumentName(documentName, "AxinomIngest");
   const documentDescriptionWarning = descriptionWarning(documentDescription, "Document Description");
   if (documentDescriptionWarning) {
     warnings.push(documentDescriptionWarning);
@@ -1381,7 +1483,7 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
     buildResult.warnings.forEach((warning) => warnings.push(`Row ${rowNumber}: ${warning}`));
   });
 
-  const nameError = formatDocumentNameError(documentName);
+  const nameError = formatDocumentNameError(safeDocumentName);
   if (nameError) {
     rowErrors.push({ row: 0, errors: [nameError], raw_row: {} });
   }
@@ -1393,7 +1495,7 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
   const ok = items.length > 0 && rowErrors.length === 0;
   const document = ok
     ? {
-        name: normalizeString(documentName),
+        name: safeDocumentName,
         ...(normalizeString(documentDescription) ? { description: normalizeString(documentDescription) } : {}),
         items,
         document_created: currentDocumentCreated(),
@@ -1459,6 +1561,7 @@ function validateSinglePayload(payload) {
 
 function generateSingle() {
   const payload = collectSinglePayload();
+  payload.name = normalizeDocumentNameInput(byId("single-name"), "AxinomSingleIngest");
   const validationError = validateSinglePayload(payload);
   if (validationError) {
     setStatus(validationError, "error");
@@ -1570,7 +1673,7 @@ function downloadOutput() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${state.currentDownloadName || "axinom-ingest"}.json`;
+  link.download = `${state.currentDownloadName || "AxinomIngest"}.json`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -1897,7 +2000,7 @@ function clearDirectRows() {
 }
 
 function convertDirectRows() {
-  const documentName = normalizeString(byId("direct-name").value || "Axinom Direct Sheet Ingest");
+  const documentName = normalizeDocumentNameInput(byId("direct-name"), "AxinomDirectSheetIngest");
   const nameError = formatDocumentNameError(documentName);
   if (nameError) {
     setStatus(nameError, "error");
@@ -2275,7 +2378,7 @@ async function convertBulk() {
     return;
   }
 
-  const documentName = normalizeString(byId("bulk-name").value || "Axinom Bulk Ingest");
+  const documentName = normalizeDocumentNameInput(byId("bulk-name"), "AxinomBulkIngest");
   const nameError = formatDocumentNameError(documentName);
   if (nameError) {
     setStatus(nameError, "error");
@@ -2359,7 +2462,7 @@ function bindEvents() {
     if (!state.singleNameDirty) {
       syncSingleDocumentMetadata();
     }
-    setCurrentDownloadName(byId("single-name").value || "axinom-ingest");
+    setCurrentDownloadName(byId("single-name").value || "AxinomIngest");
   });
 
   byId("single-description").addEventListener("input", () => {
