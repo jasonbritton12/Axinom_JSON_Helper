@@ -1,10 +1,16 @@
-const APP_RELEASE_LABEL = "v2.1.0";
-const HELPER_VERSION = "v2.1.0";
+const APP_RELEASE_LABEL = "v2.1.1";
+const HELPER_VERSION = "v2.1.1";
 const DOCUMENT_NAME_MAX_LENGTH = 50;
 const DESCRIPTION_WARN_LENGTH = 150;
 const THEME_STORAGE_KEY = "axinom_ingest_theme";
+const MAX_WORKBOOK_BYTES = 10 * 1024 * 1024;
+const MAX_ZIP_ENTRIES = 300;
+const MAX_ZIP_ENTRY_BYTES = 5 * 1024 * 1024;
+const MAX_TOTAL_UNCOMPRESSED_BYTES = 25 * 1024 * 1024;
 
 const PROGRAM_TYPES = ["MOVIE", "TVSHOW", "PODCAST", "SEASON", "EPISODE", "TRAILER", "EXTRA"];
+const EXPERIMENTAL_PROGRAM_TYPES = new Set(["PODCAST"]);
+const AXINOM_CONFIRMED_INGEST_TYPES = new Set(["MOVIE", "TVSHOW", "SEASON", "EPISODE", "TRAILER", "EXTRA"]);
 const VIDEO_PROFILES = [
   "CMAF_File_Non-DRM",
   "HLS-DASH_DRM",
@@ -13,8 +19,8 @@ const VIDEO_PROFILES = [
 ];
 const COMMON_COUNTRY_CODES = ["US", "CA"];
 const TEMPLATE_FILES = {
-  latest: "docs/reference/axinom_ingest_template_v2_1_0.xlsx",
-  current: "docs/reference/axinom_ingest_template_v2_1_0.xlsx",
+  latest: "docs/reference/axinom_ingest_template_v2_1_1.xlsx",
+  current: "docs/reference/axinom_ingest_template_v2_1_1.xlsx",
 };
 
 const PROGRAM_TYPE_CONFIG = {
@@ -332,9 +338,16 @@ function toggleTheme() {
   applyTheme(state.theme === "dark" ? "light" : "dark");
 }
 
-function activateTab(tabId) {
+function activateTab(tabId, { focus = false } = {}) {
+  let activeButton = null;
   document.querySelectorAll(".tab-btn").forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.tabTarget === tabId);
+    const isActive = button.dataset.tabTarget === tabId;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+    button.tabIndex = isActive ? 0 : -1;
+    if (isActive) {
+      activeButton = button;
+    }
   });
 
   document.querySelectorAll(".tab-panel").forEach((panel) => {
@@ -342,6 +355,34 @@ function activateTab(tabId) {
     panel.classList.toggle("is-active", isActive);
     panel.setAttribute("aria-hidden", isActive ? "false" : "true");
   });
+
+  if (focus && activeButton) {
+    activeButton.focus();
+  }
+}
+
+function handleTabKeydown(event) {
+  const tabs = [...document.querySelectorAll(".tab-btn")];
+  const currentIndex = tabs.indexOf(event.currentTarget);
+  if (currentIndex < 0) {
+    return;
+  }
+
+  let nextIndex = currentIndex;
+  if (event.key === "ArrowRight") {
+    nextIndex = (currentIndex + 1) % tabs.length;
+  } else if (event.key === "ArrowLeft") {
+    nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+  } else if (event.key === "Home") {
+    nextIndex = 0;
+  } else if (event.key === "End") {
+    nextIndex = tabs.length - 1;
+  } else {
+    return;
+  }
+
+  event.preventDefault();
+  activateTab(tabs[nextIndex].dataset.tabTarget, { focus: true });
 }
 
 function escapeHtml(value) {
@@ -365,7 +406,52 @@ function syntaxHighlightJson(jsonString) {
   );
 }
 
-function renderDocument(document) {
+function preflightStatusLabel(result) {
+  if (!result) {
+    return "No generated document yet.";
+  }
+  if (result.errors?.length) {
+    return "Blocked";
+  }
+  if (result.warnings?.length) {
+    return "Warnings";
+  }
+  return "Ready";
+}
+
+function renderPreflight(result = null) {
+  const preflight = byId("preflight");
+  if (!preflight) {
+    return;
+  }
+
+  const status = preflightStatusLabel(result);
+  preflight.className = "preflight";
+  if (!result) {
+    preflight.innerHTML = "<strong>Preflight</strong><span>No generated document yet.</span>";
+    return;
+  }
+
+  if (result.errors?.length) {
+    preflight.classList.add("error");
+  } else if (result.warnings?.length) {
+    preflight.classList.add("warn");
+  } else {
+    preflight.classList.add("ok");
+  }
+
+  const issues = [
+    ...(result.errors || []).map((message) => ({ kind: "Error", message })),
+    ...(result.warnings || []).map((message) => ({ kind: "Warning", message })),
+  ];
+  const issueList = issues.length
+    ? `<ul>${issues.map((issue) => `<li><strong>${issue.kind}:</strong> ${escapeHtml(issue.message)}</li>`).join("")}</ul>`
+    : "<p>No blocking errors or warnings found.</p>";
+
+  preflight.innerHTML = `<strong>Preflight: ${status}</strong>${issueList}`;
+}
+
+function renderDocument(document, preflightResult = null) {
   state.currentDocument = document && typeof document === "object" ? document : null;
   state.currentJson = state.currentDocument
     ? JSON.stringify(state.currentDocument, null, 2)
@@ -376,9 +462,21 @@ function renderDocument(document) {
     output.innerHTML = syntaxHighlightJson(state.currentJson);
   }
 
-  const ready = Boolean(state.currentDocument);
+  const ready = Boolean(state.currentDocument) && (!preflightResult || !preflightResult.errors?.length);
   byId("download-json").disabled = !ready;
   byId("copy-json").disabled = !ready;
+  renderPreflight(preflightResult);
+}
+
+function renderBlockedPreflight(errors, warnings = []) {
+  const result = {
+    ok: false,
+    status: "error",
+    errors: Array.isArray(errors) ? errors.filter(Boolean) : [String(errors || "Preflight failed.")],
+    warnings: Array.isArray(warnings) ? warnings.filter(Boolean) : [],
+  };
+  renderDocument(null, result);
+  return result;
 }
 
 function setStatus(message, kind = "") {
@@ -904,10 +1002,73 @@ function formatDocumentNameError(name) {
   if (!clean) {
     return "Document Name is required.";
   }
+  if (!/^[A-Za-z0-9_]+$/.test(clean)) {
+    return "Document Name may only contain letters, numbers, and underscores.";
+  }
   if (clean.length > DOCUMENT_NAME_MAX_LENGTH) {
     return `Document Name must be ${DOCUMENT_NAME_MAX_LENGTH} characters or fewer.`;
   }
   return "";
+}
+
+function experimentalProgramTypeWarning(programType) {
+  return EXPERIMENTAL_PROGRAM_TYPES.has(programType) && !AXINOM_CONFIRMED_INGEST_TYPES.has(programType)
+    ? `${programType} is experimental and not yet present in the current Axinom MediaService introspection.`
+    : "";
+}
+
+function preflightDocument(document, warnings = []) {
+  const errors = [];
+  const normalizedWarnings = [...new Set((warnings || []).map(normalizeString).filter(Boolean))];
+
+  if (!document || typeof document !== "object") {
+    errors.push("No ingest document has been generated.");
+    return { ok: false, status: "error", errors, warnings: normalizedWarnings };
+  }
+
+  const nameError = formatDocumentNameError(document.name);
+  if (nameError) {
+    errors.push(nameError);
+  }
+
+  if (!Array.isArray(document.items) || !document.items.length) {
+    errors.push("Document must contain at least one ingest item.");
+  }
+
+  const externalIds = new Map();
+  (document.items || []).forEach((item, index) => {
+    const itemNumber = index + 1;
+    const itemType = normalizeProgramType(item?.type);
+    const externalId = normalizeString(item?.external_id);
+
+    if (!PROGRAM_TYPE_CONFIG[itemType]) {
+      errors.push(`Item ${itemNumber} has unsupported program type '${normalizeString(item?.type)}'.`);
+    }
+
+    const experimentalWarning = experimentalProgramTypeWarning(itemType);
+    if (experimentalWarning && !normalizedWarnings.some((warning) => warning.includes(experimentalWarning))) {
+      normalizedWarnings.push(experimentalWarning);
+    }
+
+    if (!externalId) {
+      errors.push(`Item ${itemNumber} is missing external_id.`);
+      return;
+    }
+
+    if (externalIds.has(externalId)) {
+      errors.push(`Duplicate external_id '${externalId}' appears in item ${externalIds.get(externalId)} and item ${itemNumber}.`);
+    } else {
+      externalIds.set(externalId, itemNumber);
+    }
+  });
+
+  const uniqueWarnings = [...new Set(normalizedWarnings)];
+  return {
+    ok: errors.length === 0,
+    status: errors.length ? "error" : (uniqueWarnings.length ? "warn" : "ok"),
+    errors,
+    warnings: uniqueWarnings,
+  };
 }
 
 function splitMulti(value, { uppercase = false } = {}) {
@@ -926,24 +1087,24 @@ function parseDateOnlyValue(value) {
 
   let match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (match) {
-    return buildValidatedDate(Number(match[1]), Number(match[2]), Number(match[3])) || text;
+    return buildValidatedDate(Number(match[1]), Number(match[2]), Number(match[3])) || "";
   }
 
   match = text.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
   if (match) {
-    return buildValidatedDate(Number(match[1]), Number(match[2]), Number(match[3])) || text;
+    return buildValidatedDate(Number(match[1]), Number(match[2]), Number(match[3])) || "";
   }
 
   match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (match) {
-    return buildValidatedDate(Number(match[3]), Number(match[1]), Number(match[2])) || text;
+    return buildValidatedDate(Number(match[3]), Number(match[1]), Number(match[2])) || "";
   }
 
   match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
   if (match) {
     const shortYear = Number(match[3]);
     const year = shortYear <= 68 ? 2000 + shortYear : 1900 + shortYear;
-    return buildValidatedDate(year, Number(match[1]), Number(match[2])) || text;
+    return buildValidatedDate(year, Number(match[1]), Number(match[2])) || "";
   }
 
   match = text.match(/^(\d{4})$/);
@@ -1028,7 +1189,7 @@ function parseDateValue(value) {
     return datetime.slice(0, 10);
   }
 
-  return text;
+  return "";
 }
 
 function normalizeHour(hour, meridiem) {
@@ -1066,8 +1227,23 @@ function parseDateTimeToUtcString(value, boundary = "start") {
     return "";
   }
 
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+\-]\d{2}:\d{2})$/.test(text)) {
-    return text.replace(/Z$/, "+00:00").replace(/\.(\d{1,2})([+\-]\d{2}:\d{2})$/, (_, ms, tz) => `.${ms.padEnd(3, "0")}${tz}`);
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?(Z|[+\-]\d{2}:\d{2})$/);
+  if (isoMatch) {
+    const timezone = isoMatch[8] === "Z" ? "+00:00" : isoMatch[8];
+    const timezoneMatch = timezone.match(/^([+\-])(\d{2}):(\d{2})$/);
+    if (!timezoneMatch || Number(timezoneMatch[2]) > 23 || Number(timezoneMatch[3]) > 59) {
+      return "";
+    }
+    return formatDateTimeParts(
+      Number(isoMatch[1]),
+      Number(isoMatch[2]),
+      Number(isoMatch[3]),
+      Number(isoMatch[4]),
+      Number(isoMatch[5]),
+      Number(isoMatch[6] || 0),
+      Number(String(isoMatch[7] || "0").padEnd(3, "0")),
+      timezone,
+    );
   }
 
   let match = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,3}))?\s*(AM|PM)?$/i);
@@ -1100,7 +1276,7 @@ function parseDateTimeToUtcString(value, boundary = "start") {
       : `${dateOnly}T00:00:00.000+00:00`;
   }
 
-  return text;
+  return "";
 }
 
 function buildData(fields) {
@@ -1216,6 +1392,25 @@ function buildItem(fields) {
   const ingestType = config.ingestType;
   const externalId = normalizeString(fields.external_id);
   const parentType = normalizeProgramType(fields.parent_type);
+  const releasedInput = normalizeString(fields.released);
+  const licenseStartInput = normalizeString(fields.license_start);
+  const licenseEndInput = normalizeString(fields.license_end);
+
+  if (releasedInput && !parseDateValue(releasedInput)) {
+    errors.push("Field 'released' must be a valid date");
+  }
+  if (licenseStartInput && !parseDateTimeToUtcString(licenseStartInput, "start")) {
+    errors.push("Field 'license_start' must be a valid date/time");
+  }
+  if (licenseEndInput && !parseDateTimeToUtcString(licenseEndInput, "end")) {
+    errors.push("Field 'license_end' must be a valid date/time");
+  }
+
+  const experimentalWarning = experimentalProgramTypeWarning(ingestType);
+  if (experimentalWarning) {
+    warnings.push(experimentalWarning);
+  }
+
   const data = buildData(fields);
 
   if (ingestType === "TVSHOW" || ingestType === "PODCAST" || ingestType === "SEASON") {
@@ -1386,10 +1581,15 @@ function sheetErrorFieldCandidates(field) {
     external_id: ["externalid", "titlealternateid", "guid", "series", "id"],
     title: ["title"],
     description: ["description"],
+    released: ["releaseddate", "pubdate", "year"],
     index: ["seasonepnumber", "seasonepisodeindex", "episodenumber", "seasonnumber"],
     parent_type: ["parenttype"],
     parent_external_id: ["parentexternalid"],
+    license_start: ["licensestartutc", "availabledate"],
+    license_end: ["licenseendutc", "expirationdate"],
+    license_countries: ["licensecountries", "availabilitylabels"],
     video_source: ["videosource"],
+    video_profile: ["videoprofile"],
   };
   return mapping[field] || [field];
 }
@@ -1429,11 +1629,23 @@ function formatSheetErrorMessage(error, { rowNumber, rowCells, normalizedProgram
   } else if (error === "Field 'main_video.source' is required when 'main_video.profile' is set") {
     field = "video_source";
     message = "Video Source is required when Video Profile is set";
+  } else if (error === "Field 'released' must be a valid date") {
+    field = "released";
+    message = "Released Date must be a valid date";
+  } else if (error === "Field 'license_start' must be a valid date/time") {
+    field = "license_start";
+    message = "License Start must be a valid date/time";
+  } else if (error === "Field 'license_end' must be a valid date/time") {
+    field = "license_end";
+    message = "License End must be a valid date/time";
   } else if (error.startsWith("Field 'parent_type' must be one of: ")) {
     field = "parent_type";
     message = error.replace("Field 'parent_type' ", "Parent Type ");
   } else if (error.startsWith("Unsupported program type ")) {
     field = "program_type";
+  } else if (error.startsWith("Duplicate external_id ")) {
+    field = "external_id";
+    message = error.replace("Duplicate external_id", "Duplicate External ID");
   }
 
   const cellRef = field ? sheetErrorCellRef(field, rowCells || {}) : "";
@@ -1444,6 +1656,7 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
   const items = [];
   const warnings = [];
   const rowErrors = [];
+  const externalIds = new Map();
   const safeDocumentName = sanitizeDocumentName(documentName, "AxinomIngest");
   const documentDescriptionWarning = descriptionWarning(documentDescription, "Document Description");
   if (documentDescriptionWarning) {
@@ -1479,6 +1692,21 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
       return;
     }
 
+    const rowExternalId = normalizeString(buildResult.item.external_id);
+    if (externalIds.has(rowExternalId)) {
+      rowErrors.push({
+        row: rowNumber,
+        errors: [formatSheetErrorMessage(`Duplicate external_id '${rowExternalId}' matches row ${externalIds.get(rowExternalId)}`, {
+          rowNumber,
+          rowCells: rowCellMap,
+          normalizedProgramType: normalizeProgramType(fields.program_type),
+        })],
+        raw_row: row,
+      });
+      return;
+    }
+    externalIds.set(rowExternalId, rowNumber);
+
     items.push(buildResult.item);
     buildResult.warnings.forEach((warning) => warnings.push(`Row ${rowNumber}: ${warning}`));
   });
@@ -1492,8 +1720,7 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
     rowErrors.push({ row: 0, errors: ["No ingest rows found in spreadsheet."], raw_row: {} });
   }
 
-  const ok = items.length > 0 && rowErrors.length === 0;
-  const document = ok
+  let document = items.length
     ? {
         name: safeDocumentName,
         ...(normalizeString(documentDescription) ? { description: normalizeString(documentDescription) } : {}),
@@ -1502,12 +1729,21 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
         helper_version: HELPER_VERSION,
       }
     : null;
+  const preflight = document ? preflightDocument(document, warnings) : null;
+  if (preflight?.errors.length) {
+    rowErrors.push({ row: 0, errors: preflight.errors, raw_row: {} });
+  }
+  const ok = Boolean(document) && rowErrors.length === 0 && (!preflight || preflight.ok);
+  if (!ok) {
+    document = null;
+  }
 
   return {
     ok,
     document,
     errors: rowErrors,
-    warnings,
+    warnings: preflight?.warnings || warnings,
+    preflight,
     stats: {
       source: sourceName,
       sheet: sheetName,
@@ -1564,12 +1800,14 @@ function generateSingle() {
   payload.name = normalizeDocumentNameInput(byId("single-name"), "AxinomSingleIngest");
   const validationError = validateSinglePayload(payload);
   if (validationError) {
+    renderBlockedPreflight([validationError]);
     setStatus(validationError, "error");
     return;
   }
 
   const buildResult = buildItem(payload.fields);
   if (buildResult.errors.length) {
+    renderBlockedPreflight(buildResult.errors, buildResult.warnings);
     setStatus(buildResult.errors.join(" | "), "error");
     return;
   }
@@ -1582,18 +1820,24 @@ function generateSingle() {
     helper_version: HELPER_VERSION,
   };
 
-  updateAllDocumentMetaDisplays(document);
-  renderDocument(document);
-  setCurrentDownloadName(document.name);
-
   const warnings = [
     descriptionWarning(payload.description, "Document Description"),
     descriptionWarning(payload.fields.description, "Description"),
     ...buildResult.warnings,
   ].filter(Boolean);
+  const preflight = preflightDocument(document, warnings);
 
-  if (warnings.length) {
-    setStatus(`Generated with warning(s): ${warnings.join(" | ")}`, "warn");
+  updateAllDocumentMetaDisplays(document);
+  renderDocument(preflight.ok ? document : null, preflight);
+  setCurrentDownloadName(document.name);
+
+  if (!preflight.ok) {
+    setStatus(`Preflight blocked output: ${preflight.errors.join(" | ")}`, "error");
+    return;
+  }
+
+  if (preflight.warnings.length) {
+    setStatus(`Generated with warning(s): ${preflight.warnings.join(" | ")}`, "warn");
     return;
   }
 
@@ -1627,6 +1871,7 @@ function clearSingle() {
   updateRequiredHint();
   updateVisibleFields();
   renderDocument(null);
+  renderPreflight();
   setStatus("Ready.");
 }
 
@@ -1927,12 +2172,14 @@ function appendDirectRow(initialValues = {}) {
 
     eventTargets.forEach((target) => {
       target.addEventListener("input", () => {
+        control.classList.remove("is-invalid");
         if (column === "Description") {
           updateDirectDescriptionInput(target);
         }
         syncDirectDocumentMetadata();
       });
       target.addEventListener("change", () => {
+        control.classList.remove("is-invalid");
         if (column === "Description") {
           updateDirectDescriptionInput(target);
         }
@@ -1981,53 +2228,151 @@ function buildDirectTable() {
 }
 
 function readDirectRows() {
+  return readDirectRowsDetailed().rows;
+}
+
+function readDirectRowsDetailed() {
   const rows = [];
+  const rowNumbers = [];
+  const rowCells = [];
   byId("direct-table").querySelectorAll("tbody tr").forEach((row) => {
     const values = {};
-    DIRECT_COLUMNS.forEach((column) => {
+    const cellMap = {};
+    const rowNumber = [...row.parentElement.children].indexOf(row) + 2;
+    DIRECT_COLUMNS.forEach((column, columnIndex) => {
       values[column] = readDirectCellValue(directRowInput(row, column), column);
+      cellMap[column] = `${indexToCol(columnIndex + 1)}${rowNumber}`;
     });
     if (Object.values(values).some(Boolean)) {
       rows.push(values);
+      rowNumbers.push(rowNumber);
+      rowCells.push(cellMap);
     }
   });
-  return rows;
+  return { rows, rowNumbers, rowCells };
+}
+
+function directControlFromCellRef(cellRef) {
+  const match = normalizeString(cellRef).match(/^([A-Z]+)(\d+)$/);
+  if (!match) {
+    return null;
+  }
+  const columnIndex = colLettersToIndex(match[1]) - 1;
+  const rowIndex = Number.parseInt(match[2], 10) - 2;
+  const columnName = DIRECT_COLUMNS[columnIndex];
+  if (!columnName || rowIndex < 0) {
+    return null;
+  }
+  const row = byId("direct-table").querySelectorAll("tbody tr")[rowIndex];
+  return row ? directRowInput(row, columnName) : null;
+}
+
+function focusDirectCell(cellRef) {
+  const control = directControlFromCellRef(cellRef);
+  if (!control) {
+    return;
+  }
+  const target = control.matches?.("details") ? control.querySelector("summary") : control;
+  control.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+  target?.focus?.();
+}
+
+function clearDirectValidation({ hideIssues = true } = {}) {
+  byId("direct-table").querySelectorAll(".is-invalid").forEach((node) => node.classList.remove("is-invalid"));
+  if (hideIssues) {
+    const issues = byId("direct-issues");
+    if (issues) {
+      issues.hidden = true;
+      issues.innerHTML = "";
+    }
+  }
+}
+
+function renderDirectIssues(rowErrors) {
+  const issues = byId("direct-issues");
+  if (!issues) {
+    return;
+  }
+  const messages = [];
+  (rowErrors || []).forEach((entry) => {
+    (entry.errors || []).forEach((message) => messages.push(message));
+  });
+
+  if (!messages.length) {
+    issues.hidden = true;
+    issues.innerHTML = "";
+    return;
+  }
+
+  issues.hidden = false;
+  issues.innerHTML = `<strong>Direct Sheet issues</strong><ul>${messages.map((message, index) => {
+    const match = message.match(/^Error at ([A-Z]+\d+):/);
+    const cellRef = match ? match[1] : "";
+    return `<li>${cellRef ? `<button type="button" class="issue-link" data-cell-ref="${cellRef}">${cellRef}</button> ` : ""}${escapeHtml(message.replace(/^Error at [A-Z]+\d+:\s*/, ""))}</li>`;
+  }).join("")}</ul>`;
+
+  issues.querySelectorAll("[data-cell-ref]").forEach((button) => {
+    button.addEventListener("click", () => focusDirectCell(button.dataset.cellRef));
+  });
+}
+
+function markDirectValidationIssues(rowErrors) {
+  clearDirectValidation({ hideIssues: false });
+  (rowErrors || []).forEach((entry) => {
+    (entry.errors || []).forEach((message) => {
+      const match = message.match(/^Error at ([A-Z]+\d+):/);
+      const control = match ? directControlFromCellRef(match[1]) : null;
+      if (control) {
+        control.classList.add("is-invalid");
+      }
+    });
+  });
+  renderDirectIssues(rowErrors);
 }
 
 function clearDirectRows() {
   buildDirectTable();
+  clearDirectValidation();
   syncDirectDocumentMetadata();
 }
 
 function convertDirectRows() {
+  clearDirectValidation();
   const documentName = normalizeDocumentNameInput(byId("direct-name"), "AxinomDirectSheetIngest");
   const nameError = formatDocumentNameError(documentName);
   if (nameError) {
+    renderBlockedPreflight([nameError]);
     setStatus(nameError, "error");
     return;
   }
 
-  const rows = readDirectRows();
-  if (!rows.length) {
-    setStatus("Enter at least one row in the direct sheet.", "error");
+  const directRows = readDirectRowsDetailed();
+  if (!directRows.rows.length) {
+    const message = "Enter at least one row in the direct sheet.";
+    renderBlockedPreflight([message]);
+    setStatus(message, "error");
     return;
   }
 
   const result = rowsToDocument({
-    rows,
+    rows: directRows.rows,
     documentName,
     sourceName: "direct-sheet",
     sheetName: "Direct Entry",
     documentDescription: normalizeString(byId("direct-description").value),
+    rowNumbers: directRows.rowNumbers,
+    rowCells: directRows.rowCells,
   });
 
   if (result.document) {
     updateAllDocumentMetaDisplays(result.document);
-    renderDocument(result.document);
+    renderDocument(result.document, result.preflight);
     setCurrentDownloadName(result.document.name || documentName);
   }
 
   if (!result.ok) {
+    markDirectValidationIssues(result.errors);
+    renderBlockedPreflight(result.errors.flatMap((entry) => entry.errors || []), result.warnings);
     setStatus(formatErrors(result), "error");
     return;
   }
@@ -2050,9 +2395,51 @@ function renderTemplateDownload(versionKey) {
   link.remove();
 }
 
-async function inflateRaw(data) {
+function workbookSupportError() {
+  return typeof DecompressionStream === "function"
+    ? ""
+    : "This browser does not support the built-in decompression API needed for .xlsx imports. Use current Chrome, Edge, Safari, or Firefox.";
+}
+
+function assertWorkbookFile(file) {
+  const supportError = workbookSupportError();
+  if (supportError) {
+    throw new Error(supportError);
+  }
+  if (!file) {
+    throw new Error("Choose a .xlsx file first.");
+  }
+  if (file.size > MAX_WORKBOOK_BYTES) {
+    throw new Error(`Workbook is too large. Maximum supported upload size is ${Math.round(MAX_WORKBOOK_BYTES / (1024 * 1024))} MB.`);
+  }
+  if (!/\.xlsx$/i.test(file.name || "")) {
+    throw new Error("Workbook must be an .xlsx file.");
+  }
+}
+
+function updateBulkImportAvailability() {
+  const note = byId("bulk-support-note");
+  const convertButton = byId("convert-bulk");
+  const supportError = workbookSupportError();
+  if (note) {
+    note.hidden = !supportError;
+    note.textContent = supportError;
+  }
+  if (convertButton && supportError) {
+    convertButton.disabled = true;
+  }
+}
+
+async function inflateRaw(data, expectedSize = 0, fileName = "workbook entry") {
   const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+  const inflated = new Uint8Array(await new Response(stream).arrayBuffer());
+  if (expectedSize && inflated.length !== expectedSize) {
+    throw new Error(`Workbook ZIP entry ${fileName} decompressed to an unexpected size.`);
+  }
+  if (inflated.length > MAX_ZIP_ENTRY_BYTES) {
+    throw new Error(`Workbook ZIP entry ${fileName} is too large after decompression.`);
+  }
+  return inflated;
 }
 
 function readUint16LE(view, offset) {
@@ -2087,11 +2474,15 @@ function concatPath(basePath, target) {
 }
 
 async function unzipEntries(arrayBuffer) {
-  if (typeof DecompressionStream !== "function") {
-    throw new Error("This browser does not support the built-in decompression API needed for .xlsx imports.");
+  const supportError = workbookSupportError();
+  if (supportError) {
+    throw new Error(supportError);
   }
 
   const bytes = new Uint8Array(arrayBuffer);
+  if (bytes.length > MAX_WORKBOOK_BYTES) {
+    throw new Error(`Workbook is too large. Maximum supported upload size is ${Math.round(MAX_WORKBOOK_BYTES / (1024 * 1024))} MB.`);
+  }
   const view = new DataView(arrayBuffer);
   const eocdSignature = 0x06054b50;
   const centralSignature = 0x02014b50;
@@ -2111,23 +2502,41 @@ async function unzipEntries(arrayBuffer) {
   }
 
   const totalEntries = readUint16LE(view, eocdOffset + 10);
+  if (totalEntries > MAX_ZIP_ENTRIES) {
+    throw new Error(`Workbook contains too many ZIP entries (${totalEntries}). Maximum supported entry count is ${MAX_ZIP_ENTRIES}.`);
+  }
   let directoryOffset = readUint32LE(view, eocdOffset + 16);
   const entries = new Map();
+  let totalUncompressedSize = 0;
 
   for (let index = 0; index < totalEntries; index += 1) {
+    if (directoryOffset + 46 > bytes.length) {
+      throw new Error("Workbook ZIP central directory is truncated.");
+    }
     if (readUint32LE(view, directoryOffset) !== centralSignature) {
       throw new Error("Corrupt ZIP central directory entry in workbook.");
     }
 
     const compressionMethod = readUint16LE(view, directoryOffset + 10);
     const compressedSize = readUint32LE(view, directoryOffset + 20);
+    const uncompressedSize = readUint32LE(view, directoryOffset + 24);
     const fileNameLength = readUint16LE(view, directoryOffset + 28);
     const extraLength = readUint16LE(view, directoryOffset + 30);
     const commentLength = readUint16LE(view, directoryOffset + 32);
     const localHeaderOffset = readUint32LE(view, directoryOffset + 42);
+    if (uncompressedSize > MAX_ZIP_ENTRY_BYTES) {
+      throw new Error(`Workbook ZIP entry exceeds the per-entry size limit: ${decodeText(bytes.slice(directoryOffset + 46, directoryOffset + 46 + fileNameLength)) || "unknown entry"}.`);
+    }
+    totalUncompressedSize += uncompressedSize;
+    if (totalUncompressedSize > MAX_TOTAL_UNCOMPRESSED_BYTES) {
+      throw new Error(`Workbook uncompressed content exceeds the ${Math.round(MAX_TOTAL_UNCOMPRESSED_BYTES / (1024 * 1024))} MB limit.`);
+    }
     const fileNameBytes = bytes.slice(directoryOffset + 46, directoryOffset + 46 + fileNameLength);
     const fileName = decodeText(fileNameBytes);
 
+    if (localHeaderOffset + 30 > bytes.length) {
+      throw new Error(`Corrupt ZIP local header for ${fileName}.`);
+    }
     if (readUint32LE(view, localHeaderOffset) !== localSignature) {
       throw new Error(`Corrupt ZIP local header for ${fileName}.`);
     }
@@ -2135,13 +2544,19 @@ async function unzipEntries(arrayBuffer) {
     const localNameLength = readUint16LE(view, localHeaderOffset + 26);
     const localExtraLength = readUint16LE(view, localHeaderOffset + 28);
     const dataOffset = localHeaderOffset + 30 + localNameLength + localExtraLength;
+    if (dataOffset + compressedSize > bytes.length) {
+      throw new Error(`Workbook ZIP entry ${fileName} is truncated.`);
+    }
     const compressedBytes = bytes.slice(dataOffset, dataOffset + compressedSize);
 
     let contentBytes;
     if (compressionMethod === 0) {
       contentBytes = compressedBytes;
+      if (uncompressedSize && contentBytes.length !== uncompressedSize) {
+        throw new Error(`Workbook ZIP entry ${fileName} has an unexpected stored size.`);
+      }
     } else if (compressionMethod === 8) {
-      contentBytes = await inflateRaw(compressedBytes);
+      contentBytes = await inflateRaw(compressedBytes, uncompressedSize, fileName);
     } else {
       throw new Error(`Unsupported workbook compression method ${compressionMethod} for ${fileName}.`);
     }
@@ -2341,6 +2756,7 @@ function extractHeaderAndRecords(rawRows, workbookOptions = {}) {
 }
 
 async function parseXlsxRows(file, preferredSheetName = "") {
+  assertWorkbookFile(file);
   const entries = await unzipEntries(await file.arrayBuffer());
   const sheets = parseWorkbookSheets(entries);
   const date1904 = parseWorkbookDate1904(entries);
@@ -2374,13 +2790,16 @@ async function convertBulk() {
   const fileInput = byId("bulk-file");
   const file = fileInput.files && fileInput.files[0];
   if (!file) {
-    setStatus("Choose a .xlsx file first.", "error");
+    const message = "Choose a .xlsx file first.";
+    renderBlockedPreflight([message]);
+    setStatus(message, "error");
     return;
   }
 
   const documentName = normalizeDocumentNameInput(byId("bulk-name"), "AxinomBulkIngest");
   const nameError = formatDocumentNameError(documentName);
   if (nameError) {
+    renderBlockedPreflight([nameError]);
     setStatus(nameError, "error");
     return;
   }
@@ -2401,11 +2820,12 @@ async function convertBulk() {
 
     if (result.document) {
       updateAllDocumentMetaDisplays(result.document);
-      renderDocument(result.document);
+      renderDocument(result.document, result.preflight);
       setCurrentDownloadName(result.document.name || documentName);
     }
 
     if (!result.ok) {
+      renderBlockedPreflight(result.errors.flatMap((entry) => entry.errors || []), result.warnings);
       setStatus(formatErrors(result), "error");
       return;
     }
@@ -2417,11 +2837,19 @@ async function convertBulk() {
     }
     setStatus(summary, "ok");
   } catch (error) {
+    renderBlockedPreflight([`Excel conversion failed: ${error.message}`]);
     setStatus(`Excel conversion failed: ${error.message}`, "error");
   }
 }
 
 function bindEvents() {
+  const appIcon = byId("app-icon");
+  if (appIcon) {
+    appIcon.addEventListener("error", () => {
+      appIcon.hidden = true;
+    });
+  }
+
   document.addEventListener("pointerdown", (event) => {
     if (!event.target.closest(".country-picker")) {
       closeOpenCountryPickers();
@@ -2436,6 +2864,7 @@ function bindEvents() {
 
   document.querySelectorAll(".tab-btn").forEach((button) => {
     button.addEventListener("click", () => activateTab(button.dataset.tabTarget));
+    button.addEventListener("keydown", handleTabKeydown);
   });
 
   byId("theme-toggle").addEventListener("click", toggleTheme);
@@ -2494,6 +2923,7 @@ function bindEvents() {
   });
 
   byId("bulk-file").addEventListener("change", () => {
+    updateBulkImportAvailability();
     void syncBulkDocumentMetadata();
   });
 
@@ -2542,6 +2972,7 @@ function init() {
   updateSingleVideoProfileOptions();
   buildDirectTable();
   bindEvents();
+  updateBulkImportAvailability();
   updateAllDocumentMetaDisplays();
   syncSingleDocumentMetadata(true);
   void syncBulkDocumentMetadata(true);
@@ -2553,4 +2984,36 @@ function init() {
   setStatus("Ready.");
 }
 
-init();
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  init();
+}
+
+if (typeof module !== "undefined") {
+  module.exports = {
+    APP_RELEASE_LABEL,
+    HELPER_VERSION,
+    DOCUMENT_NAME_MAX_LENGTH,
+    DESCRIPTION_WARN_LENGTH,
+    MAX_WORKBOOK_BYTES,
+    MAX_ZIP_ENTRIES,
+    MAX_ZIP_ENTRY_BYTES,
+    MAX_TOTAL_UNCOMPRESSED_BYTES,
+    PROGRAM_TYPES,
+    PROGRAM_TYPE_CONFIG,
+    VIDEO_PROFILES,
+    TEMPLATE_FILES,
+    assertWorkbookFile,
+    buildDocumentName,
+    buildItem,
+    descriptionWarning,
+    formatDocumentNameError,
+    mapRowToFields,
+    parseDateTimeToUtcString,
+    parseDateValue,
+    preflightDocument,
+    rowsToDocument,
+    sanitizeDocumentName,
+    suggestDocumentMetadataForFields,
+    workbookSupportError,
+  };
+}

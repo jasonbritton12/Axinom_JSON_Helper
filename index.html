@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
     <link rel="icon" type="image/png" href="site/icon.png" />
     <link rel="apple-touch-icon" href="site/icon.png" />
     <title>Axinom Ingest JSON Helper</title>
@@ -430,6 +431,40 @@
       .status.warn { background: var(--status-warn-bg); color: var(--warn); }
       .status.error { background: var(--status-error-bg); color: var(--error); }
 
+      .preflight, .issues {
+        margin: 0 0 0.55rem;
+        padding: 0.55rem 0.65rem;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 0.82rem;
+        background: var(--status-bg);
+        color: var(--status-text);
+      }
+
+      .preflight strong, .issues strong { display: block; margin-bottom: 0.25rem; }
+      .preflight ul, .issues ul { margin: 0.25rem 0 0 1.1rem; padding: 0; }
+      .preflight.ok { background: var(--status-ok-bg); color: var(--ok); }
+      .preflight.warn, .issues.warn { background: var(--status-warn-bg); color: var(--warn); }
+      .preflight.error, .issues.error { background: var(--status-error-bg); color: var(--error); }
+      .issues[hidden] { display: none; }
+      .issue-link {
+        border: 0;
+        border-radius: 4px;
+        padding: 0;
+        background: transparent;
+        color: inherit;
+        text-decoration: underline;
+        font-weight: 700;
+      }
+      .issue-link:hover { background: transparent; transform: none; text-decoration: none; }
+      input.is-invalid,
+      select.is-invalid,
+      textarea.is-invalid,
+      details.is-invalid summary {
+        border-color: var(--error);
+        box-shadow: 0 0 0 2px rgba(255, 154, 154, 0.22);
+      }
+
       .output {
         margin: 0; min-height: 210px; max-height: 480px; overflow: auto;
         background: var(--output-bg); color: var(--output-text); border: 1px solid var(--output-border);
@@ -455,7 +490,7 @@
       <section class="hero">
         <div class="hero-head">
           <div class="hero-title-container">
-            <img src="site/icon.png" alt="Axinom Logo" class="app-icon" onerror="this.style.display='none'">
+            <img id="app-icon" src="site/icon.png" alt="Axinom Logo" class="app-icon">
             <div>
               <h1>Axinom Ingest JSON Helper</h1>
               <p>Single-title form, bulk Excel conversion, and direct spreadsheet-style entry.</p>
@@ -465,20 +500,20 @@
             Use Light Theme
           </button>
         </div>
-        <p class="release-meta">Release: <span id="app-release">v2.1.0</span></p>
+        <p class="release-meta">Release: <span id="app-release">v2.1.1</span></p>
       </section>
 
       <section class="card tabs-card">
         <div class="tabs" role="tablist" aria-label="Workflows">
-          <button class="tab-btn is-active" type="button" data-tab-target="tab-single">Single Title</button>
-          <button class="tab-btn" type="button" data-tab-target="tab-bulk">Bulk Excel</button>
-          <button class="tab-btn" type="button" data-tab-target="tab-direct">Direct Sheet</button>
+          <button id="tab-button-single" class="tab-btn is-active" type="button" role="tab" aria-selected="true" aria-controls="tab-single" data-tab-target="tab-single">Single Title</button>
+          <button id="tab-button-bulk" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-bulk" tabindex="-1" data-tab-target="tab-bulk">Bulk Excel</button>
+          <button id="tab-button-direct" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-direct" tabindex="-1" data-tab-target="tab-direct">Direct Sheet</button>
         </div>
 
         <!-- SINGLE TAB -->
-        <div id="tab-single" class="tab-panel is-active" role="tabpanel">
+        <div id="tab-single" class="tab-panel is-active" role="tabpanel" aria-labelledby="tab-button-single" aria-hidden="false">
           <h2>Single Item Builder</h2>
-          <p class="helper">`Simple` mode shows minimum ingest fields. `PODCAST`, `TRAILER`, and `EXTRA` are first-class types in this schema; trailers and extras require a parent external ID.</p>
+          <p class="helper">Simple mode shows minimum ingest fields. PODCAST is available for experimental ingest testing; trailers and extras require a parent external ID.</p>
 
           <div class="grid three">
             <label>
@@ -555,7 +590,7 @@
           </div>
         </div>
 
-        <div id="tab-bulk" class="tab-panel" role="tabpanel" aria-hidden="true">
+        <div id="tab-bulk" class="tab-panel" role="tabpanel" aria-labelledby="tab-button-bulk" aria-hidden="true">
           <h2>Bulk Excel Converter</h2>
           <p class="helper">Upload one of the tracked Axinom ingest templates and convert it directly in the browser. Workbook parsing stays local to the page.</p>
 
@@ -585,10 +620,12 @@
             <label>
               <span class="label-text">Template Version</span>
               <select id="bulk-template-version">
-                <option value="current" selected>v2.1.0</option>
+                <option value="current" selected>v2.1.1</option>
               </select>
             </label>
           </div>
+
+          <p id="bulk-support-note" class="helper" hidden></p>
 
           <label class="file-picker top-gap">
             <span class="label-text">Excel File (.xlsx)</span>
@@ -601,7 +638,7 @@
           </div>
         </div>
 
-        <div id="tab-direct" class="tab-panel" role="tabpanel" aria-hidden="true">
+        <div id="tab-direct" class="tab-panel" role="tabpanel" aria-labelledby="tab-button-direct" aria-hidden="true">
           <h2>Direct Spreadsheet Entry</h2>
           <p class="helper">Enter rows directly in-grid, then convert them to Axinom ingest JSON without leaving the browser.</p>
 
@@ -626,10 +663,12 @@
             <label>
               <span class="label-text">Template Version</span>
               <select id="direct-template-version">
-                <option value="current" selected>v2.1.0</option>
+                <option value="current" selected>v2.1.1</option>
               </select>
             </label>
           </div>
+
+          <div id="direct-issues" class="issues error" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
           <div class="sheet-wrap top-gap">
             <table id="direct-table" class="direct-table"></table>
@@ -646,7 +685,11 @@
 
       <section class="card">
         <h2>Output</h2>
-        <div id="status" class="status">Ready.</div>
+        <div id="status" class="status" role="status" aria-live="polite" aria-atomic="true">Ready.</div>
+        <div id="preflight" class="preflight" role="status" aria-live="polite" aria-atomic="true">
+          <strong>Preflight</strong>
+          <span>No generated document yet.</span>
+        </div>
         <pre class="output"><code id="json-output" class="json-code"></code></pre>
         <div class="actions">
           <button id="download-json" type="button" disabled>Download JSON</button>

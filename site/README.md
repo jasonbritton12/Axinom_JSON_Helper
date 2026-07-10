@@ -2,7 +2,7 @@
 
 Current static-web direction for the Axinom Ingest JSON Helper.
 
-Current static release line: `v2.1.0`.
+Current static release line: `v2.1.1`.
 
 Files:
 - `index.html`: self-contained static single-page app entrypoint at repo root
