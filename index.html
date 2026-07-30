@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+    <link rel="icon" type="image/png" href="site/icon.png" />
+    <link rel="apple-touch-icon" href="site/icon.png" />
+    <title>Axinom Ingest JSON Helper</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: radial-gradient(circle at 12% 10%, #1f3042 0%, #101923 44%, #090f17 100%);
+        --panel: #111c29;
+        --ink: #e4edf8;
+        --muted: #9fb4c8;
+        --accent: #2b8ac2;
+        --accent-strong: #1f72a5;
+        --border: #2a4054;
+        --warn: #f6be66;
+        --error: #ff9a9a;
+        --ok: #89e5af;
+        --hero-gradient: linear-gradient(112deg, #0f3552 0%, #0c4f77 56%, #1f7da1 100%);
+        --hero-text: #f4fcff;
+        --helper: #8fb0cb;
+        --tabs-bg: #0f2233;
+        --tab-text: #bcd1e4;
+        --tab-hover: #1b3448;
+        --tab-active: #2b8ac2;
+        --field-bg: #0f1a25;
+        --field-border: #375168;
+        --required-bg: #0f2739;
+        --required-text: #b8d7ef;
+        --required-label: #d7e7f6;
+        --required-star: #f87171;
+        --secondary-btn: #4b657d;
+        --sheet-bg: #0f1b28;
+        --table-head-bg: #173248;
+        --table-head-ink: #d2e6f7;
+        --table-row-marker-bg: #132b3e;
+        --table-row-marker-ink: #a5c6e0;
+        --table-grid: #30495e;
+        --status-bg: #1a3145;
+        --status-text: #c0dff6;
+        --status-ok-bg: #183826;
+        --status-warn-bg: #3a2f1c;
+        --status-error-bg: #3a1f23;
+        --output-bg: #0d1117;
+        --output-text: #c9d1d9;
+        --output-border: #30363d;
+        
+        /* GitHub Vibrant Dark Colors */
+        --json-key: #7ee787;      /* Green */
+        --json-string: #a5d6ff;   /* Light Blue */
+        --json-number: #f2cc60;   /* Yellow */
+        --json-boolean: #ff7b72;  /* Red */
+        --json-null: #d2a8ff;     /* Purple */
+        
+        --theme-toggle-bg: rgba(255, 255, 255, 0.18);
+        --theme-toggle-border: rgba(255, 255, 255, 0.28);
+      }
+
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --bg: radial-gradient(circle at 10% 10%, #d9f2ff 0%, #f6f8fb 42%, #eef2f6 100%);
+        --panel: #ffffff;
+        --ink: #0b1b2b;
+        --muted: #4a5b6b;
+        --accent: #045f8a;
+        --accent-strong: #024969;
+        --border: #d4deea;
+        --warn: #aa5d00;
+        --error: #9b1c1c;
+        --ok: #0b6e3b;
+        --hero-gradient: linear-gradient(112deg, #023047 0%, #045f8a 56%, #1886a8 100%);
+        --hero-text: #f4fcff;
+        --helper: #35526c;
+        --tabs-bg: #e9f2fa;
+        --tab-text: #234058;
+        --tab-hover: #d6e6f3;
+        --tab-active: #025a82;
+        --field-bg: #ffffff;
+        --field-border: #c5d2df;
+        --required-bg: #eef7fc;
+        --required-text: #183146;
+        --required-label: #11364f;
+        --required-star: #b62222;
+        --secondary-btn: #577a95;
+        --sheet-bg: #f8fbff;
+        --table-head-bg: #e8f2fa;
+        --table-head-ink: #23435d;
+        --table-row-marker-bg: #f0f6fb;
+        --table-row-marker-ink: #34526c;
+        --table-grid: #d9e4ef;
+        --status-bg: #e8f2fb;
+        --status-text: #173e5f;
+        --status-ok-bg: #e4f6eb;
+        --status-warn-bg: #fff0df;
+        --status-error-bg: #fce8e8;
+        --output-bg: #f6f8fa;
+        --output-text: #24292f;
+        --output-border: #d0d7de;
+        
+        /* GitHub Vibrant Light Colors */
+        --json-key: #116329;      /* Dark Green */
+        --json-string: #032f62;   /* Dark Blue */
+        --json-number: #b08800;   /* Dark Yellow */
+        --json-boolean: #d73a49;  /* Red */
+        --json-null: #6f42c1;     /* Purple */
+        
+        --theme-toggle-bg: rgba(255, 255, 255, 0.2);
+        --theme-toggle-border: rgba(255, 255, 255, 0.33);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        min-height: 100vh;
+      }
+
+      .page {
+        width: min(1260px, 95vw);
+        margin: 1.4rem auto 2.2rem;
+        display: grid;
+        gap: 1rem;
+        min-width: 0;
+        overflow-x: clip;
+      }
+
+      .hero {
+        background: var(--hero-gradient);
+        color: var(--hero-text);
+        border-radius: 14px;
+        padding: 1.2rem 1.3rem;
+        box-shadow: 0 14px 26px -20px rgba(0, 0, 0, 0.6);
+      }
+
+      .hero-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.8rem;
+        align-items: flex-start;
+      }
+
+      .hero-title-container {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+
+      .app-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      }
+
+      .hero h1 {
+        margin: 0 0 0.3rem;
+        font-size: clamp(1.2rem, 1.8vw, 1.8rem);
+      }
+
+      .hero p { margin: 0; opacity: 0.95; }
+      .release-meta { margin-top: 0.35rem; font-size: 0.82rem; letter-spacing: 0.01em; opacity: 0.92; }
+
+      .theme-toggle {
+        border: 1px solid var(--theme-toggle-border);
+        border-radius: 999px;
+        padding: 0.35rem 0.8rem;
+        background: var(--theme-toggle-bg);
+        color: #fff;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .theme-toggle:hover { background: rgba(255, 255, 255, 0.28); transform: none; }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 1rem;
+        box-shadow: 0 12px 22px -24px rgba(1, 37, 62, 0.8);
+        min-width: 0;
+        overflow-x: hidden;
+      }
+
+      h2 { margin: 0 0 0.65rem; font-size: 1.1rem; }
+      .helper { margin: 0 0 0.8rem; font-size: 0.83rem; color: var(--helper); }
+
+      .tabs {
+        display: inline-flex;
+        gap: 0.45rem;
+        padding: 0.3rem;
+        border-radius: 999px;
+        background: var(--tabs-bg);
+        margin-bottom: 0.9rem;
+      }
+
+      .tab-btn {
+        border: none;
+        border-radius: 999px;
+        padding: 0.38rem 0.88rem;
+        background: transparent;
+        color: var(--tab-text);
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .tab-btn:hover { background: var(--tab-hover); color: var(--tab-text); }
+      .tab-btn.is-active { background: var(--tab-active); color: #fff; }
+      
+      .tab-btn:disabled { 
+        opacity: 0.4; 
+        cursor: not-allowed; 
+      }
+      .tab-btn:disabled:hover { 
+        background: transparent; 
+        color: var(--tab-text); 
+      }
+
+      .tab-panel { display: none; min-width: 0; }
+      .tab-panel.is-active { display: block; }
+
+      .grid { display: grid; gap: 0.7rem; min-width: 0; }
+      .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+      label { display: grid; gap: 0.3rem; font-size: 0.84rem; color: var(--muted); min-width: 0; }
+      .label-text { font-weight: 500; }
+      .field-note { font-size: 0.74rem; color: var(--helper); }
+      .char-count { font-size: 0.72rem; color: var(--helper); font-weight: 700; }
+      .char-count.is-over-limit { color: var(--error); }
+      label.is-over-limit .label-text,
+      label.is-over-limit .field-note { color: var(--error); }
+      input.is-over-limit,
+      textarea.is-over-limit {
+        border-color: var(--error);
+        box-shadow: 0 0 0 2px rgba(255, 154, 154, 0.22);
+      }
+      label.is-required .label-text { font-weight: 700; color: var(--required-label); }
+      label.is-required .label-text::after { content: " *"; color: var(--required-star); font-weight: 800; }
+      .hidden-field { display: none !important; }
+      .top-gap { margin-top: 0.7rem; }
+
+      input, select, textarea, button { font: inherit; }
+      input, select, textarea {
+        width: 100%; border: 1px solid var(--field-border); border-radius: 8px;
+        padding: 0.46rem 0.58rem; background: var(--field-bg); color: var(--ink);
+      }
+      select[multiple] { min-height: 7.6rem; padding: 0.34rem 0.42rem; overflow-y: auto; }
+      input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+        outline: 2px solid var(--accent); outline-offset: 1px;
+      }
+      textarea { min-height: 76px; resize: vertical; }
+
+      .required-box {
+        margin: 0.75rem 0; padding: 0.52rem 0.67rem; border-left: 4px solid var(--accent);
+        background: var(--required-bg); border-radius: 4px; color: var(--required-text);
+        font-size: 0.84rem;
+      }
+
+      .actions { margin-top: 0.85rem; display: flex; flex-wrap: wrap; gap: 0.55rem; }
+      button {
+        border: none; border-radius: 999px; padding: 0.46rem 0.94rem;
+        background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;
+        transition: transform 120ms ease, background 120ms ease;
+      }
+      button:hover { background: var(--accent-strong); transform: translateY(-1px); }
+      button.secondary { background: var(--secondary-btn); }
+      button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+      .file-picker input { padding: 0.35rem; }
+
+      .sheet-wrap {
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        max-height: 420px;
+        background: var(--sheet-bg);
+        max-width: 100%;
+      }
+
+      .direct-table {
+        border-collapse: collapse;
+        min-width: 2200px;
+        width: 100%;
+      }
+
+      .direct-table th,
+      .direct-table td {
+        border-bottom: 1px solid var(--table-grid);
+        border-right: 1px solid var(--table-grid);
+        padding: 0.28rem;
+        vertical-align: top;
+      }
+
+      .direct-table th {
+        position: sticky;
+        top: 0;
+        background: var(--table-head-bg);
+        z-index: 1;
+        text-align: left;
+        font-size: 0.75rem;
+        color: var(--table-head-ink);
+        min-width: 128px;
+      }
+
+      .direct-table th:first-child,
+      .direct-table td:first-child {
+        min-width: 36px;
+        width: 36px;
+        text-align: center;
+        background: var(--table-row-marker-bg);
+        font-weight: 700;
+        color: var(--table-row-marker-ink);
+      }
+
+      .direct-table td input,
+      .direct-table td select {
+        min-width: 118px;
+        font-size: 0.76rem;
+        padding: 0.34rem 0.42rem;
+      }
+
+      .country-picker {
+        position: relative;
+        min-width: 118px;
+      }
+
+      .country-picker summary {
+        list-style: none;
+        position: relative;
+        min-width: 118px;
+        font-size: 0.76rem;
+        padding: 0.34rem 1.7rem 0.34rem 0.42rem;
+        border: 1px solid var(--field-border);
+        border-radius: 8px;
+        background: var(--field-bg);
+        color: var(--ink);
+        cursor: pointer;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .country-picker summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .country-picker summary::after {
+        content: "▾";
+        position: absolute;
+        right: 0.5rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--muted);
+        pointer-events: none;
+      }
+
+      .country-picker[open] summary {
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+      }
+
+      .country-picker-panel {
+        position: absolute;
+        top: calc(100% - 1px);
+        left: 0;
+        z-index: 12;
+        width: max(100%, 12rem);
+        padding: 0.45rem;
+        display: grid;
+        gap: 0.35rem;
+        border: 1px solid var(--field-border);
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        background: var(--panel);
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
+      }
+
+      .country-picker-option {
+        display: grid;
+        grid-template-columns: 1rem 1fr;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.76rem;
+        color: var(--ink);
+      }
+
+      .direct-table td .country-picker-option input {
+        min-width: 1rem;
+        width: 1rem;
+        height: 1rem;
+        padding: 0;
+        margin: 0;
+      }
+
+      .country-picker-option span {
+        white-space: nowrap;
+      }
+
+      .country-picker-manual {
+        display: grid;
+        gap: 0.25rem;
+        padding-top: 0.3rem;
+        border-top: 1px solid var(--table-grid);
+        font-size: 0.7rem;
+        color: var(--muted);
+      }
+
+      .direct-table td .country-picker-manual input {
+        min-width: 0;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      .country-picker-placeholder {
+        color: var(--muted);
+      }
+
+      .status { margin-bottom: 0.5rem; padding: 0.5rem 0.65rem; border-radius: 8px; font-size: 0.86rem; background: var(--status-bg); color: var(--status-text); }
+      .status.ok { background: var(--status-ok-bg); color: var(--ok); }
+      .status.warn { background: var(--status-warn-bg); color: var(--warn); }
+      .status.error { background: var(--status-error-bg); color: var(--error); }
+
+      .preflight, .issues {
+        margin: 0 0 0.55rem;
+        padding: 0.55rem 0.65rem;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 0.82rem;
+        background: var(--status-bg);
+        color: var(--status-text);
+      }
+
+      .preflight strong, .issues strong { display: block; margin-bottom: 0.25rem; }
+      .preflight ul, .issues ul { margin: 0.25rem 0 0 1.1rem; padding: 0; }
+      .preflight.ok { background: var(--status-ok-bg); color: var(--ok); }
+      .preflight.warn, .issues.warn { background: var(--status-warn-bg); color: var(--warn); }
+      .preflight.error, .issues.error { background: var(--status-error-bg); color: var(--error); }
+      .issues[hidden] { display: none; }
+      .issue-link {
+        border: 0;
+        border-radius: 4px;
+        padding: 0;
+        background: transparent;
+        color: inherit;
+        text-decoration: underline;
+        font-weight: 700;
+      }
+      .issue-link:hover { background: transparent; transform: none; text-decoration: none; }
+      input.is-invalid,
+      select.is-invalid,
+      textarea.is-invalid,
+      details.is-invalid summary {
+        border-color: var(--error);
+        box-shadow: 0 0 0 2px rgba(255, 154, 154, 0.22);
+      }
+
+      .output {
+        margin: 0; min-height: 210px; max-height: 480px; overflow: auto;
+        background: var(--output-bg); color: var(--output-text); border: 1px solid var(--output-border);
+        border-radius: 10px; padding: 0.8rem; font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+        font-size: 0.82rem; line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
+      }
+
+      .json-key { color: var(--json-key); }
+      .json-string { color: var(--json-string); }
+      .json-number { color: var(--json-number); }
+      .json-boolean { color: var(--json-boolean); }
+      .json-null { color: var(--json-null); }
+
+      @media (max-width: 980px) { .grid.three { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+      @media (max-width: 680px) {
+        .grid.two, .grid.three { grid-template-columns: 1fr; }
+        .hero-title-container { flex-direction: column; align-items: flex-start; gap: 10px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="hero-head">
+          <div class="hero-title-container">
+            <img id="app-icon" src="site/icon.png" alt="Axinom Logo" class="app-icon">
+            <div>
+              <h1>Axinom Ingest JSON Helper</h1>
+              <p>Single-title form, bulk Excel conversion, and direct spreadsheet-style entry.</p>
+            </div>
+          </div>
+          <button id="theme-toggle" type="button" class="theme-toggle" aria-label="Toggle color theme">
+            Use Light Theme
+          </button>
+        </div>
+        <p class="release-meta">Release: <span id="app-release">v2.1.2</span></p>
+      </section>
+
+      <section class="card tabs-card">
+        <div class="tabs" role="tablist" aria-label="Workflows">
+          <button id="tab-button-single" class="tab-btn is-active" type="button" role="tab" aria-selected="true" aria-controls="tab-single" data-tab-target="tab-single">Single Title</button>
+          <button id="tab-button-bulk" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-bulk" tabindex="-1" data-tab-target="tab-bulk">Bulk Excel</button>
+          <button id="tab-button-direct" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-direct" tabindex="-1" data-tab-target="tab-direct">Direct Sheet</button>
+        </div>
+
+        <!-- SINGLE TAB -->
+        <div id="tab-single" class="tab-panel is-active" role="tabpanel" aria-labelledby="tab-button-single" aria-hidden="false">
+          <h2>Single Item Builder</h2>
+          <p class="helper">Simple mode shows minimum ingest fields. PODCAST is available for experimental ingest testing; trailers and extras require a parent external ID.</p>
+
+          <div class="grid three">
+            <label>
+              <span class="label-text">Document Name</span>
+              <span class="field-note">Max 50 chars. Code-safe: letters, numbers, and underscores only.</span>
+              <input id="single-name" type="text" value="Axinom_SingleIngest" />
+            </label>
+            <label>
+              <span class="label-text">Document Description</span>
+              <span class="field-note">Recommended max 150 characters including spaces. <span id="single-description-count" class="char-count">0/150</span></span>
+              <input id="single-description" type="text" placeholder="Optional ingest batch description" />
+            </label>
+            <label>
+              <span class="label-text">Document Created</span>
+              <!-- Added id so we can visually update it on generate -->
+              <input id="single-document-created-display" type="text" value="Auto-stamped when JSON is generated" readonly />
+            </label>
+          </div>
+
+          <div class="grid three top-gap">
+            <label data-field="program_type" class="always-required is-required">
+              <span class="label-text">Program Type</span>
+              <select id="field-program_type">
+                <option value="MOVIE" selected>MOVIE</option>
+                <option value="TVSHOW">TVSHOW</option>
+                <option value="PODCAST">PODCAST</option>
+                <option value="SEASON">SEASON</option>
+                <option value="EPISODE">EPISODE</option>
+                <option value="TRAILER">TRAILER</option>
+                <option value="EXTRA">EXTRA</option>
+              </select>
+            </label>
+            <label class="always-required is-required">
+              <span class="label-text">Ingest Mode</span>
+              <select id="single-ingest-mode">
+                <option value="SIMPLE" selected>Simple (Minimum)</option>
+                <option value="FULL">Full</option>
+              </select>
+            </label>
+            <label data-field="external_id" class="is-required">
+              <span class="label-text">External ID</span>
+              <input id="field-external_id" type="text" placeholder="M_avatar_2009" />
+            </label>
+          </div>
+
+          <div class="required-box" id="required-fields">Required: loading...</div>
+
+          <div class="grid three" id="single-fields-grid">
+            <label data-field="title"><span class="label-text">Title</span><input id="field-title" type="text" placeholder="Avatar" /></label>
+            <label data-field="original_title"><span class="label-text">Original Title</span><input id="field-original_title" type="text" /></label>
+            <label data-field="released"><span class="label-text">Released Date</span><input id="field-released" type="date" /></label>
+            <label data-field="description"><span class="label-text">Description</span><span class="field-note">Recommended max 150 characters including spaces. <span id="field-description-count" class="char-count">0/150</span></span><textarea id="field-description"></textarea></label>
+            <label data-field="synopsis"><span class="label-text">Synopsis</span><textarea id="field-synopsis"></textarea></label>
+            <label data-field="studio"><span class="label-text">Studio</span><input id="field-studio" type="text" /></label>
+            <label data-field="index"><span class="label-text" id="lbl-index">Index</span><input id="field-index" type="number" min="1" /></label>
+            <label data-field="parent_type"><span class="label-text">Parent Type</span><select id="field-parent_type"></select></label>
+            <label data-field="parent_external_id"><span class="label-text">Parent External ID</span><input id="field-parent_external_id" type="text" /></label>
+            <label data-field="genres"><span class="label-text">Genres (comma-separated)</span><input id="field-genres" type="text" /></label>
+            <label data-field="tags"><span class="label-text">Tags (comma-separated)</span><input id="field-tags" type="text" /></label>
+            <label data-field="cast"><span class="label-text">Cast (comma-separated)</span><input id="field-cast" type="text" /></label>
+            <label data-field="production_countries"><span class="label-text">Production Countries</span><input id="field-production_countries" type="text" list="country-code-list" placeholder="US, CA" /></label>
+            <label data-field="license_start"><span class="label-text">License Start (UTC)</span><input id="field-license_start" type="datetime-local" /></label>
+            <label data-field="license_end"><span class="label-text">License End (UTC)</span><input id="field-license_end" type="datetime-local" /></label>
+            <label data-field="license_countries"><span class="label-text">License Countries</span><input id="field-license_countries" type="text" list="country-code-list" placeholder="US, CA" /></label>
+            <label data-field="video_source"><span class="label-text">Main Video Source</span><input id="field-video_source" type="text" /></label>
+            <label data-field="video_profile"><span class="label-text">Main Video Profile</span><select id="field-video_profile"></select></label>
+            <label data-field="cover_image"><span class="label-text">Cover Image</span><input id="field-cover_image" type="text" /></label>
+            <label data-field="teaser_image"><span class="label-text">Teaser Image</span><input id="field-teaser_image" type="text" /></label>
+          </div>
+
+          <div class="actions">
+            <button id="build-single" type="button">Generate JSON</button>
+            <button id="clear-single" type="button" class="secondary">Clear Form</button>
+          </div>
+        </div>
+
+        <div id="tab-bulk" class="tab-panel" role="tabpanel" aria-labelledby="tab-button-bulk" aria-hidden="true">
+          <h2>Bulk Excel Converter</h2>
+          <p class="helper">Upload one of the tracked Axinom ingest templates and convert it directly in the browser. Workbook parsing stays local to the page.</p>
+
+          <div class="grid three">
+            <label>
+              <span class="label-text">Document Name</span>
+              <span class="field-note">Max 50 chars. Code-safe: letters, numbers, and underscores only.</span>
+              <input id="bulk-name" type="text" value="Axinom_BulkIngest" />
+            </label>
+            <label>
+              <span class="label-text">Document Description</span>
+              <span class="field-note">Recommended max 150 characters including spaces. <span id="bulk-description-count" class="char-count">0/150</span></span>
+              <input id="bulk-description" type="text" placeholder="Optional ingest batch description" />
+            </label>
+            <label>
+              <span class="label-text">Document Created</span>
+              <input id="bulk-document-created-display" type="text" value="Auto-stamped when JSON is generated" readonly />
+            </label>
+          </div>
+
+          <div class="grid two top-gap">
+            <label>
+              <span class="label-text">Sheet Name</span>
+              <span class="field-note">Optional. Leave blank to use the first worksheet.</span>
+              <input id="bulk-sheet" type="text" placeholder="Ingest Metadata" />
+            </label>
+            <label>
+              <span class="label-text">Template Version</span>
+              <select id="bulk-template-version">
+                <option value="current" selected>v2.1.2</option>
+              </select>
+            </label>
+          </div>
+
+          <p id="bulk-support-note" class="helper" hidden></p>
+
+          <label class="file-picker top-gap">
+            <span class="label-text">Excel File (.xlsx)</span>
+            <input id="bulk-file" type="file" accept=".xlsx" />
+          </label>
+
+          <div class="actions">
+            <button id="convert-bulk" type="button">Convert Excel To JSON</button>
+            <button id="download-template-bulk" type="button" class="secondary">Download Template</button>
+          </div>
+        </div>
+
+        <div id="tab-direct" class="tab-panel" role="tabpanel" aria-labelledby="tab-button-direct" aria-hidden="true">
+          <h2>Direct Spreadsheet Entry</h2>
+          <p class="helper">Enter rows directly in-grid, then convert them to Axinom ingest JSON without leaving the browser.</p>
+
+          <div class="grid three">
+            <label>
+              <span class="label-text">Document Name</span>
+              <span class="field-note">Max 50 chars. Code-safe: letters, numbers, and underscores only.</span>
+              <input id="direct-name" type="text" value="Axinom_DirectSheetIngest" />
+            </label>
+            <label>
+              <span class="label-text">Document Description</span>
+              <span class="field-note">Recommended max 150 characters including spaces. <span id="direct-description-count" class="char-count">0/150</span></span>
+              <input id="direct-description" type="text" placeholder="Optional ingest batch description" />
+            </label>
+            <label>
+              <span class="label-text">Document Created</span>
+              <input id="direct-document-created-display" type="text" value="Auto-stamped when JSON is generated" readonly />
+            </label>
+          </div>
+
+          <div class="grid two top-gap">
+            <label>
+              <span class="label-text">Template Version</span>
+              <select id="direct-template-version">
+                <option value="current" selected>v2.1.2</option>
+              </select>
+            </label>
+          </div>
+
+          <div id="direct-issues" class="issues error" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+
+          <div class="sheet-wrap top-gap">
+            <table id="direct-table" class="direct-table"></table>
+          </div>
+
+          <div class="actions">
+            <button id="add-direct-row" type="button" class="secondary">Add Row</button>
+            <button id="clear-direct-rows" type="button" class="secondary">Clear Rows</button>
+            <button id="convert-direct" type="button">Convert Direct Sheet To JSON</button>
+            <button id="download-template-direct" type="button" class="secondary">Download Template</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Output</h2>
+        <div id="status" class="status" role="status" aria-live="polite" aria-atomic="true">Ready.</div>
+        <div id="preflight" class="preflight" role="status" aria-live="polite" aria-atomic="true">
+          <strong>Preflight</strong>
+          <span>No generated document yet.</span>
+        </div>
+        <pre class="output"><code id="json-output" class="json-code"></code></pre>
+        <div class="actions">
+          <button id="download-json" type="button" disabled>Download JSON</button>
+          <button id="copy-json" type="button" class="secondary" disabled>Copy JSON</button>
+        </div>
+      </section>
+
+      <datalist id="country-code-list">
+        <option value="US"></option>
+        <option value="CA"></option>
+      </datalist>
+
+    </main>
+    <script src="site/app.js" defer></script>
+  </body>
+</html>
