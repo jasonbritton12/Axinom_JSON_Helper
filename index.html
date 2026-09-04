@@ -306,7 +306,7 @@
         position: sticky;
         top: 0;
         background: var(--table-head-bg);
-        z-index: 1;
+        z-index: 4;
         text-align: left;
         font-size: 0.75rem;
         color: var(--table-head-ink);
@@ -322,6 +322,36 @@
         font-weight: 700;
         color: var(--table-row-marker-ink);
       }
+
+      .direct-table th:nth-child(1),
+      .direct-table td:nth-child(1) {
+        position: sticky;
+        left: 0;
+        z-index: 3;
+        background: var(--table-row-marker-bg);
+      }
+
+      .direct-table th:nth-child(2),
+      .direct-table td:nth-child(2) {
+        position: sticky;
+        left: 36px;
+        z-index: 2;
+        min-width: 128px;
+        background: var(--panel);
+      }
+
+      .direct-table th:nth-child(3),
+      .direct-table td:nth-child(3) {
+        position: sticky;
+        left: 164px;
+        z-index: 2;
+        min-width: 128px;
+        background: var(--panel);
+      }
+
+      .direct-table thead th:nth-child(1) { z-index: 6; background: var(--table-head-bg); }
+      .direct-table thead th:nth-child(2),
+      .direct-table thead th:nth-child(3) { z-index: 5; background: var(--table-head-bg); }
 
       .direct-table td input,
       .direct-table td select {
@@ -443,6 +473,17 @@
 
       .preflight strong, .issues strong { display: block; margin-bottom: 0.25rem; }
       .preflight ul, .issues ul { margin: 0.25rem 0 0 1.1rem; padding: 0; }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
       .preflight.ok { background: var(--status-ok-bg); color: var(--ok); }
       .preflight.warn, .issues.warn { background: var(--status-warn-bg); color: var(--warn); }
       .preflight.error, .issues.error { background: var(--status-error-bg); color: var(--error); }
@@ -464,6 +505,14 @@
         border-color: var(--error);
         box-shadow: 0 0 0 2px rgba(255, 154, 154, 0.22);
       }
+      input.is-warning,
+      select.is-warning,
+      textarea.is-warning,
+      details.is-warning summary {
+        border-color: var(--warn);
+        box-shadow: 0 0 0 2px rgba(246, 190, 102, 0.22);
+      }
+      .issues li.warning { color: var(--warn); }
 
       .output {
         margin: 0; min-height: 210px; max-height: 480px; overflow: auto;
@@ -500,7 +549,7 @@
             Use Light Theme
           </button>
         </div>
-        <p class="release-meta">Release: <span id="app-release">v2.1.2</span></p>
+        <p class="release-meta">Release: <span id="app-release">v2.2.0</span></p>
       </section>
 
       <section class="card tabs-card">
@@ -513,7 +562,7 @@
         <!-- SINGLE TAB -->
         <div id="tab-single" class="tab-panel is-active" role="tabpanel" aria-labelledby="tab-button-single" aria-hidden="false">
           <h2>Single Item Builder</h2>
-          <p class="helper">Simple mode shows minimum ingest fields. PODCAST is available for experimental ingest testing; trailers and extras require a parent external ID.</p>
+          <p class="helper">Simple mode shows minimum ingest fields. PODCAST, PODCAST_SEASON, and PODCAST_EPISODE are available for experimental ingest testing; trailers and extras require a parent external ID.</p>
 
           <div class="grid three">
             <label>
@@ -539,9 +588,11 @@
               <select id="field-program_type">
                 <option value="MOVIE" selected>MOVIE</option>
                 <option value="TVSHOW">TVSHOW</option>
-                <option value="PODCAST">PODCAST</option>
                 <option value="SEASON">SEASON</option>
                 <option value="EPISODE">EPISODE</option>
+                <option value="PODCAST">PODCAST</option>
+                <option value="PODCAST_SEASON">PODCAST_SEASON</option>
+                <option value="PODCAST_EPISODE">PODCAST_EPISODE</option>
                 <option value="TRAILER">TRAILER</option>
                 <option value="EXTRA">EXTRA</option>
               </select>
@@ -556,6 +607,7 @@
             <label data-field="external_id" class="is-required">
               <span class="label-text">External ID</span>
               <input id="field-external_id" type="text" placeholder="M_avatar_2009" />
+              <span id="single-external-id-state" class="field-note" aria-live="polite">Needs generation inputs</span>
             </label>
           </div>
 
@@ -568,7 +620,9 @@
             <label data-field="description"><span class="label-text">Description</span><span class="field-note">Recommended max 150 characters including spaces. <span id="field-description-count" class="char-count">0/150</span></span><textarea id="field-description"></textarea></label>
             <label data-field="synopsis"><span class="label-text">Synopsis</span><textarea id="field-synopsis"></textarea></label>
             <label data-field="studio"><span class="label-text">Studio</span><input id="field-studio" type="text" /></label>
-            <label data-field="index"><span class="label-text" id="lbl-index">Index</span><input id="field-index" type="number" min="1" /></label>
+            <label data-field="series_hint"><span class="label-text">Series</span><input id="field-series_hint" type="text" /></label>
+            <label data-field="season_index"><span class="label-text">Season Number</span><input id="field-season_index" type="number" min="1" /></label>
+            <label data-field="episode_index"><span class="label-text">Episode Number</span><input id="field-episode_index" type="number" min="1" /></label>
             <label data-field="parent_type"><span class="label-text">Parent Type</span><select id="field-parent_type"></select></label>
             <label data-field="parent_external_id"><span class="label-text">Parent External ID</span><input id="field-parent_external_id" type="text" /></label>
             <label data-field="genres"><span class="label-text">Genres (comma-separated)</span><input id="field-genres" type="text" /></label>
@@ -583,6 +637,8 @@
             <label data-field="cover_image"><span class="label-text">Cover Image</span><input id="field-cover_image" type="text" /></label>
             <label data-field="teaser_image"><span class="label-text">Teaser Image</span><input id="field-teaser_image" type="text" /></label>
           </div>
+
+          <div id="single-episode-warning" class="helper" aria-live="polite" aria-atomic="true"></div>
 
           <div class="actions">
             <button id="build-single" type="button">Generate JSON</button>
@@ -620,7 +676,7 @@
             <label>
               <span class="label-text">Template Version</span>
               <select id="bulk-template-version">
-                <option value="current" selected>v2.1.2</option>
+                <option value="current" selected>v2.2.0</option>
               </select>
             </label>
           </div>
@@ -663,12 +719,12 @@
             <label>
               <span class="label-text">Template Version</span>
               <select id="direct-template-version">
-                <option value="current" selected>v2.1.2</option>
+                <option value="current" selected>v2.2.0</option>
               </select>
             </label>
           </div>
 
-          <div id="direct-issues" class="issues error" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+          <div id="direct-issues" class="issues error" aria-labelledby="direct-issues-heading" hidden></div>
 
           <div class="sheet-wrap top-gap">
             <table id="direct-table" class="direct-table"></table>
@@ -686,10 +742,11 @@
       <section class="card">
         <h2>Output</h2>
         <div id="status" class="status" role="status" aria-live="polite" aria-atomic="true">Ready.</div>
-        <div id="preflight" class="preflight" role="status" aria-live="polite" aria-atomic="true">
-          <strong>Preflight</strong>
+        <div id="preflight" class="preflight" aria-labelledby="preflight-heading">
+          <strong id="preflight-heading">Preflight</strong>
           <span>No generated document yet.</span>
         </div>
+        <span id="preflight-live-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></span>
         <pre class="output"><code id="json-output" class="json-code"></code></pre>
         <div class="actions">
           <button id="download-json" type="button" disabled>Download JSON</button>

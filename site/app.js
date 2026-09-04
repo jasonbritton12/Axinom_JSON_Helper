@@ -1,5 +1,5 @@
-const APP_RELEASE_LABEL = "v2.1.3";
-const HELPER_VERSION = "v2.1.3";
+const APP_RELEASE_LABEL = "v2.2.0";
+const HELPER_VERSION = "v2.2.0";
 const DOCUMENT_NAME_MAX_LENGTH = 50;
 const DESCRIPTION_WARN_LENGTH = 150;
 const THEME_STORAGE_KEY = "axinom_ingest_theme";
@@ -7,20 +7,29 @@ const MAX_WORKBOOK_BYTES = 10 * 1024 * 1024;
 const MAX_ZIP_ENTRIES = 300;
 const MAX_ZIP_ENTRY_BYTES = 5 * 1024 * 1024;
 const MAX_TOTAL_UNCOMPRESSED_BYTES = 25 * 1024 * 1024;
+const MAX_WARNING_CATEGORIES = 12;
+const MAX_WARNING_REPRESENTATIVES = 3;
+const MAX_DETAILED_ISSUES = 50;
+const MAX_ISSUE_MESSAGE_LENGTH = 240;
+const MAX_STATUS_MESSAGE_LENGTH = 2000;
 
-const PROGRAM_TYPES = ["MOVIE", "TVSHOW", "PODCAST", "SEASON", "EPISODE", "TRAILER", "EXTRA"];
-const EXPERIMENTAL_PROGRAM_TYPES = new Set(["PODCAST"]);
+const PROGRAM_TYPES = ["MOVIE", "TVSHOW", "SEASON", "EPISODE", "PODCAST", "PODCAST_SEASON", "PODCAST_EPISODE", "TRAILER", "EXTRA"];
+const EXPERIMENTAL_PROGRAM_TYPES = new Set(["PODCAST", "PODCAST_SEASON", "PODCAST_EPISODE"]);
 const AXINOM_CONFIRMED_INGEST_TYPES = new Set(["MOVIE", "TVSHOW", "SEASON", "EPISODE", "TRAILER", "EXTRA"]);
-const VIDEO_PROFILES = [
-  "HLS-DASH_Non-DRM",
+const DEFAULT_VIDEO_PROFILE = "HLS-DASH_Non-DRM";
+const ACTIVE_VIDEO_PROFILES = [
+  DEFAULT_VIDEO_PROFILE,
   "HLS-DASH_DRM",
   "LAS_HLS-DASH_Non-DRM",
   "LAS_HLS-DASH_DRM",
 ];
+const LEGACY_VIDEO_PROFILES = new Set(["LAS_CMAF_File_Non-DRM", "CMAF_File_Non-DRM", "CMAF_File_DRM", "CMAF_File_Non-DRM_SD", "CMAF_File_DRM_SD", "DEFAULT", "nDRM (HLS)", "DRM (DASH & HLS)", "nDRM (HLS-Only) HD", "DRM (HLS+Dash) HD", "nDRM (HLS-Only) SD", "DRM (HLS+Dash) SD"]);
+const VIDEO_PROFILES = ACTIVE_VIDEO_PROFILES;
+const VIDEO_BEARING_TYPES = new Set(["MOVIE", "EPISODE", "PODCAST_EPISODE", "TRAILER", "EXTRA"]);
 const COMMON_COUNTRY_CODES = ["US", "CA"];
 const TEMPLATE_FILES = {
-  latest: "docs/reference/axinom_ingest_template_v2_1_2.xlsx",
-  current: "docs/reference/axinom_ingest_template_v2_1_2.xlsx",
+  latest: "docs/reference/axinom_ingest_template_v2_2_0.xlsx",
+  current: "docs/reference/axinom_ingest_template_v2_2_0.xlsx",
 };
 
 const PROGRAM_TYPE_CONFIG = {
@@ -29,7 +38,9 @@ const PROGRAM_TYPE_CONFIG = {
   PODCAST: { ingestType: "PODCAST", required: ["external_id", "title"], allowedParentTypes: [] },
   SEASON: { ingestType: "SEASON", required: ["external_id", "index", "parent_external_id"], allowedParentTypes: ["TVSHOW"] },
   EPISODE: { ingestType: "EPISODE", required: ["external_id", "title", "index", "parent_external_id"], allowedParentTypes: ["SEASON"] },
-  TRAILER: { ingestType: "TRAILER", required: ["external_id", "title", "parent_type", "parent_external_id"], allowedParentTypes: ["MOVIE", "TVSHOW", "PODCAST", "SEASON", "EPISODE", "EXTRA"] },
+  PODCAST_SEASON: { ingestType: "PODCAST_SEASON", required: ["external_id", "index", "parent_external_id"], allowedParentTypes: ["PODCAST"] },
+  PODCAST_EPISODE: { ingestType: "PODCAST_EPISODE", required: ["external_id", "title", "index", "parent_external_id"], allowedParentTypes: ["PODCAST_SEASON"] },
+  TRAILER: { ingestType: "TRAILER", required: ["external_id", "title", "parent_type", "parent_external_id"], allowedParentTypes: ["MOVIE", "TVSHOW", "PODCAST", "SEASON", "EPISODE", "PODCAST_SEASON", "PODCAST_EPISODE", "EXTRA"] },
   EXTRA: { ingestType: "EXTRA", required: ["external_id", "title", "parent_type", "parent_external_id"], allowedParentTypes: ["MOVIE", "TVSHOW", "PODCAST"] },
 };
 
@@ -38,6 +49,14 @@ const TYPE_ALIASES = {
   TVSHOW: "TVSHOW",
   PODCAST: "PODCAST",
   PODCASTS: "PODCAST",
+  PODCASTSEASON: "PODCAST_SEASON",
+  "PODCAST SEASON": "PODCAST_SEASON",
+  "PODCAST-SEASON": "PODCAST_SEASON",
+  PODCASTSEASONS: "PODCAST_SEASON",
+  PODCASTEPISODE: "PODCAST_EPISODE",
+  "PODCAST EPISODE": "PODCAST_EPISODE",
+  "PODCAST-EPISODE": "PODCAST_EPISODE",
+  PODCASTEPISODES: "PODCAST_EPISODE",
   SEASON: "SEASON",
   EPISODE: "EPISODE",
   TRAILER: "TRAILER",
@@ -55,25 +74,29 @@ const TYPE_ALIASES = {
 
 const FULL_FIELD_VISIBILITY = {
   MOVIE: new Set(["title", "original_title", "description", "synopsis", "released", "studio", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "video_source", "video_profile", "cover_image", "teaser_image"]),
-  TVSHOW: new Set(["title", "original_title", "description", "synopsis", "released", "studio", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "cover_image", "teaser_image"]),
-  PODCAST: new Set(["title", "original_title", "description", "synopsis", "released", "studio", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "cover_image", "teaser_image"]),
-  SEASON: new Set(["description", "synopsis", "released", "studio", "index", "parent_external_id", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "cover_image", "teaser_image"]),
-  EPISODE: new Set(["title", "original_title", "description", "synopsis", "released", "studio", "index", "parent_external_id", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "video_source", "video_profile", "cover_image", "teaser_image"]),
+  TVSHOW: new Set(["title", "original_title", "description", "synopsis", "released", "studio", "series_hint", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "cover_image", "teaser_image"]),
+  PODCAST: new Set(["title", "original_title", "description", "synopsis", "released", "studio", "series_hint", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "cover_image", "teaser_image"]),
+  SEASON: new Set(["description", "synopsis", "released", "studio", "series_hint", "season_index", "parent_external_id", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "cover_image", "teaser_image"]),
+  EPISODE: new Set(["title", "original_title", "description", "synopsis", "released", "studio", "series_hint", "season_index", "episode_index", "parent_external_id", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "video_source", "video_profile", "cover_image", "teaser_image"]),
+  PODCAST_SEASON: new Set(["description", "synopsis", "released", "studio", "series_hint", "season_index", "parent_external_id", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "cover_image", "teaser_image"]),
+  PODCAST_EPISODE: new Set(["title", "original_title", "description", "synopsis", "released", "studio", "series_hint", "season_index", "episode_index", "parent_external_id", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "video_source", "video_profile", "cover_image", "teaser_image"]),
   TRAILER: new Set(["title", "original_title", "description", "synopsis", "released", "studio", "parent_type", "parent_external_id", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "video_source", "video_profile", "cover_image", "teaser_image"]),
   EXTRA: new Set(["title", "original_title", "description", "synopsis", "released", "studio", "parent_type", "parent_external_id", "genres", "tags", "cast", "production_countries", "license_start", "license_end", "license_countries", "video_source", "video_profile", "cover_image", "teaser_image"]),
 };
 
 const SIMPLE_FIELD_VISIBILITY = {
-  MOVIE: new Set(["title", "video_source", "video_profile"]),
-  TVSHOW: new Set(["title"]),
-  PODCAST: new Set(["title"]),
-  SEASON: new Set(["index", "parent_external_id"]),
-  EPISODE: new Set(["title", "index", "parent_external_id", "video_source", "video_profile"]),
-  TRAILER: new Set(["title", "parent_type", "parent_external_id", "video_source", "video_profile"]),
-  EXTRA: new Set(["title", "parent_type", "parent_external_id", "video_source", "video_profile"]),
+  MOVIE: new Set(["title", "studio", "video_source", "video_profile"]),
+  TVSHOW: new Set(["title", "series_hint", "studio"]),
+  PODCAST: new Set(["title", "series_hint", "studio"]),
+  SEASON: new Set(["series_hint", "season_index", "studio", "parent_external_id"]),
+  EPISODE: new Set(["title", "series_hint", "season_index", "episode_index", "studio", "parent_external_id", "video_source", "video_profile"]),
+  PODCAST_SEASON: new Set(["series_hint", "season_index", "studio", "parent_external_id"]),
+  PODCAST_EPISODE: new Set(["title", "series_hint", "season_index", "episode_index", "studio", "parent_external_id", "video_source", "video_profile"]),
+  TRAILER: new Set(["title", "studio", "parent_type", "parent_external_id", "video_source", "video_profile"]),
+  EXTRA: new Set(["title", "studio", "parent_type", "parent_external_id", "video_source", "video_profile"]),
 };
 
-const SIMPLE_VIDEO_REQUIRED_TYPES = new Set(["MOVIE", "EPISODE", "TRAILER", "EXTRA"]);
+const SIMPLE_VIDEO_REQUIRED_TYPES = VIDEO_BEARING_TYPES;
 
 const HEADER_TO_FIELD = {
   assettype: "program_type",
@@ -91,8 +114,10 @@ const HEADER_TO_FIELD = {
   pubdate: "released",
   year: "released",
   studio: "studio",
-  seasonepnumber: "index",
-  seasonepisodeindex: "index",
+  provider: "provider_alias",
+  contentprovider: "provider_alias",
+  seasonepnumber: "legacy_index",
+  seasonepisodeindex: "legacy_index",
   seasonnumber: "season_index",
   episodenumber: "episode_index",
   parenttype: "parent_type",
@@ -112,6 +137,13 @@ const HEADER_TO_FIELD = {
   videoprofile: "video_profile",
   coverimage: "cover_image",
   teaserimage: "teaser_image",
+  languagetag: "language_tag",
+  language: "language_tag",
+  localizedtitle: "localized_title",
+  localizeddescription: "localized_description",
+  localizedsynopsis: "localized_synopsis",
+  trailersource: "trailer_source",
+  trailerprofile: "trailer_profile",
 };
 
 const DIRECT_COLUMNS = [
@@ -123,7 +155,9 @@ const DIRECT_COLUMNS = [
   "Synopsis",
   "Released Date",
   "Studio",
-  "Season/Ep Number",
+  "Series",
+  "Season Number",
+  "Episode Number",
   "Parent Type",
   "Parent External ID",
   "Genres",
@@ -148,7 +182,9 @@ const SINGLE_FIELD_IDS = [
   "synopsis",
   "released",
   "studio",
-  "index",
+  "series_hint",
+  "season_index",
+  "episode_index",
   "parent_type",
   "parent_external_id",
   "genres",
@@ -166,6 +202,7 @@ const SINGLE_FIELD_IDS = [
 
 const state = {
   currentDocument: null,
+  currentDocumentSource: "",
   currentJson: '{\n  "name": "AxinomIngest",\n  "items": []\n}',
   currentDownloadName: "AxinomIngest",
   theme: "dark",
@@ -177,6 +214,8 @@ const state = {
   directDescriptionDirty: false,
   autoSyncingDocumentMetadata: false,
   bulkPreviewRequestId: 0,
+  singleLastGeneratedId: "",
+  singleLastGeneratedParentId: "",
 };
 
 function byId(id) {
@@ -185,6 +224,134 @@ function byId(id) {
 
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : String(value || "").trim();
+}
+
+function normalizeGuidComponent(value) {
+  return normalizeString(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s&-]/g, "")
+    .replace(/([a-z0-9])&([a-z0-9])/g, "$1$2")
+    .replace(/[&-]/g, " ")
+    .trim()
+    .replace(/\s+/g, "-");
+}
+
+function resolveStudioProvider(fields = {}, sourceCells = {}) {
+  const studio = normalizeString(fields.studio);
+  const provider = normalizeString(fields.provider_alias || fields.provider);
+  const normalizedStudio = normalizeGuidComponent(studio);
+  const normalizedProvider = normalizeGuidComponent(provider);
+  const warnings = [];
+  if (studio && provider && normalizedStudio !== normalizedProvider) {
+    const studioCell = sourceCells.studio ? ` (${sourceCells.studio})` : "";
+    const providerCell = sourceCells.provider_alias || sourceCells.provider ? ` (${sourceCells.provider_alias || sourceCells.provider})` : "";
+    warnings.push(`Studio '${studio}'${studioCell} conflicts with Provider '${provider}'${providerCell}; Studio was used.`);
+  }
+  return { value: studio || provider, source: studio ? "studio" : (provider ? "provider" : ""), warnings };
+}
+
+function resolveIndexFields(fields = {}, sourceCells = {}) {
+  const type = normalizeProgramType(fields.program_type);
+  const explicitField = ["SEASON", "PODCAST_SEASON"].includes(type) ? "season_index" : "episode_index";
+  const explicit = normalizeString(fields[explicitField]);
+  const legacy = normalizeString(fields.legacy_index || fields.index);
+  const warnings = [];
+  if (explicit && legacy && Number(explicit) !== Number(legacy)) {
+    const explicitCell = sourceCells[explicitField] || explicitField;
+    const legacyCell = sourceCells.legacy_index || sourceCells.index || "legacy index";
+    warnings.push(`${explicitCell} '${explicit}' conflicts with ${legacyCell} '${legacy}'; ${explicitField} was used.`);
+  }
+  return { value: explicit || legacy, source: explicit ? explicitField : (legacy ? "legacy_index" : ""), warnings };
+}
+
+function generationInputs(fields, programType) {
+  const studio = resolveStudioProvider(fields);
+  const indices = resolveIndexFields({ ...fields, program_type: programType });
+  const series = normalizeString(fields.series_hint);
+  const title = normalizeString(fields.title);
+  const season = normalizeString(fields.season_index || (["SEASON", "PODCAST_SEASON"].includes(programType) ? indices.value : fields.season_index));
+  const episode = normalizeString(fields.episode_index || (["EPISODE", "PODCAST_EPISODE"].includes(programType) ? indices.value : fields.episode_index));
+  return { studio, series, title, season, episode };
+}
+
+function generateExternalId(fields = {}) {
+  const programType = normalizeProgramType(fields.program_type);
+  const input = generationInputs(fields, programType);
+  const missing = [];
+  const warnings = [...input.studio.warnings];
+  const require = (value, label) => {
+    if (!normalizeString(value)) missing.push(label);
+    else if (!normalizeGuidComponent(value)) missing.push(`${label} (empty after normalization)`);
+  };
+  const titleOrSeries = input.series || input.title;
+  if (["TVSHOW", "PODCAST"].includes(programType)) require(titleOrSeries, "Series or Title");
+  else if (["SEASON", "EPISODE", "PODCAST_SEASON", "PODCAST_EPISODE"].includes(programType)) require(input.series, "Series");
+  else if (["MOVIE", "TRAILER", "EXTRA"].includes(programType)) require(input.title, "Title");
+  require(input.studio.value, "Studio");
+  if (["SEASON", "EPISODE", "PODCAST_SEASON", "PODCAST_EPISODE"].includes(programType)) require(input.season, "Season Number");
+  if (["EPISODE", "PODCAST_EPISODE"].includes(programType)) require(input.episode, "Episode Number");
+  if (missing.length || !PROGRAM_TYPE_CONFIG[programType]) return { ok: false, value: "", parentExternalId: "", parentType: "", missing: missing.length ? missing : ["Program Type"], warnings, sourceFields: [] };
+
+  const root = ["PODCAST", "PODCAST_SEASON", "PODCAST_EPISODE"].includes(programType) ? "P" : "S";
+  const entity = normalizeGuidComponent(["TVSHOW", "PODCAST", "SEASON", "EPISODE", "PODCAST_SEASON", "PODCAST_EPISODE"].includes(programType) ? titleOrSeries : input.title);
+  const studio = normalizeGuidComponent(input.studio.value);
+  const season = normalizeGuidComponent(input.season);
+  const episode = normalizeGuidComponent(input.episode);
+  let value = "";
+  let parentExternalId = "";
+  let parentType = "";
+  if (["TVSHOW", "PODCAST"].includes(programType)) value = `${root}_${entity}_${studio}`;
+  if (["SEASON", "PODCAST_SEASON"].includes(programType)) {
+    parentExternalId = `${root}_${entity}_${studio}`;
+    parentType = programType === "SEASON" ? "TVSHOW" : "PODCAST";
+    value = `${parentExternalId}_S${season}`;
+  }
+  if (["EPISODE", "PODCAST_EPISODE"].includes(programType)) {
+    const rootId = `${root}_${entity}_${studio}`;
+    parentExternalId = `${rootId}_S${season}`;
+    parentType = programType === "EPISODE" ? "SEASON" : "PODCAST_SEASON";
+    value = `${parentExternalId}_E${episode}`;
+  }
+  if (programType === "MOVIE") value = `M_${entity}_${studio}`;
+  if (programType === "TRAILER") value = `M_${entity}_${studio}_preview`;
+  if (programType === "EXTRA") {
+    value = `EX_${entity}_${studio}`;
+    const suppliedParent = normalizeProgramType(fields.parent_type);
+    if (input.series && ["TVSHOW", "PODCAST"].includes(suppliedParent)) {
+      const extraRoot = suppliedParent === "PODCAST" ? "P" : "S";
+      parentExternalId = `${extraRoot}_${normalizeGuidComponent(input.series)}_${studio}`;
+      parentType = suppliedParent;
+    }
+  }
+  return { ok: true, value, parentExternalId, parentType, missing: [], warnings, sourceFields: ["title", "series_hint", input.studio.source, "season_index", "episode_index"].filter(Boolean) };
+}
+
+function resolveExternalId(fields = {}) {
+  const supplied = normalizeString(fields.external_id);
+  if (supplied) return { value: supplied, source: "supplied", generatedParentExternalId: "", generatedParentType: "", missing: [], warnings: [] };
+  const generated = generateExternalId(fields);
+  return { value: generated.value, source: generated.ok ? "generated" : "missing", generatedParentExternalId: generated.parentExternalId, generatedParentType: generated.parentType, missing: generated.missing, warnings: generated.warnings };
+}
+
+function validateEpisodeExternalId(programType, externalId, episodeNumber) {
+  if (!["EPISODE", "PODCAST_EPISODE"].includes(normalizeProgramType(programType))) return { status: "not-applicable", warning: "" };
+  const episode = normalizeString(episodeNumber);
+  if (!episode) return { status: "unverifiable", warning: "" };
+  const suffix = normalizeString(externalId).match(/(?:_|-)E(\d+)$/i);
+  if (!suffix) return { status: "unverifiable", warning: `Episode Number ${episode} could not be verified because External ID does not end with a numeric _E component.` };
+  if (Number.parseInt(suffix[1], 10) === Number.parseInt(episode, 10)) return { status: "match", warning: "" };
+  return { status: "mismatch", warning: `Episode Number ${episode} does not match External ID suffix E${suffix[1]}; expected an ID ending in _E${episode}.` };
+}
+
+function profileForFields(fields = {}, { surface = "single", templateVersion = "" } = {}) {
+  const supplied = normalizeString(fields.video_profile);
+  if (supplied) return { value: supplied, defaulted: false, preservedLegacy: LEGACY_VIDEO_PROFILES.has(supplied) };
+  const type = normalizeProgramType(fields.program_type);
+  if (!VIDEO_BEARING_TYPES.has(type) || !normalizeString(fields.video_source)) return { value: "", defaulted: false, preservedLegacy: false };
+  const normalizedVersion = normalizeString(templateVersion).replace(/^v/i, "");
+  const currentImport = surface === "bulk" && normalizedVersion === "2.2.0";
+  if (surface === "single" || surface === "direct" || currentImport) return { value: DEFAULT_VIDEO_PROFILE, defaulted: true, preservedLegacy: false };
+  return { value: "", defaulted: false, preservedLegacy: false };
 }
 
 function pascalCaseToken(token) {
@@ -389,6 +556,110 @@ function escapeHtml(value) {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
+function truncateIssueMessage(value, limit = MAX_ISSUE_MESSAGE_LENGTH) {
+  const message = normalizeString(value);
+  return message.length > limit ? `${message.slice(0, Math.max(0, limit - 1))}…` : message;
+}
+
+function warningCategory(message) {
+  const normalized = normalizeString(message).toLowerCase();
+  if (normalized.includes("description") && normalized.includes("characters")) return "description length";
+  if (normalized.includes("defaulted video profile")) return "defaulted video profile";
+  if (normalized.includes("unsupported nonempty column")) return "unsupported column";
+  if (normalized.includes("episode number")) return "episode external id check";
+  if (normalized.includes("experimental")) return "experimental type";
+  return normalized
+    .replace(/(?:warning|error) at [a-z]+\d+:\s*/g, "")
+    .replace(/\b\d+\b/g, "#")
+    .slice(0, 80) || "other warning";
+}
+
+function summarizeWarnings(records = []) {
+  const categories = new Map();
+  records.forEach((record) => {
+    const message = truncateIssueMessage(record?.message || record);
+    if (!message) return;
+    const category = warningCategory(record?.category || message);
+    const entry = categories.get(category) || { count: 0, representatives: [], messages: new Set() };
+    entry.count += 1;
+    if (!entry.messages.has(message) && entry.representatives.length < MAX_WARNING_REPRESENTATIVES) {
+      entry.messages.add(message);
+      entry.representatives.push(message);
+    }
+    categories.set(category, entry);
+  });
+  const categoryEntries = [...categories.entries()];
+  const hasOverflow = categoryEntries.length > MAX_WARNING_CATEGORIES;
+  const visibleEntries = hasOverflow ? categoryEntries.slice(0, MAX_WARNING_CATEGORIES - 1) : categoryEntries;
+  const summaries = visibleEntries.map(([category, entry]) => {
+    const prefix = entry.count > 1 ? `${entry.count} ${category} warning(s)` : `${category}:`;
+    const representatives = entry.representatives.join("; ");
+    return truncateIssueMessage(representatives ? `${prefix} ${representatives}` : prefix);
+  });
+  if (hasOverflow) {
+    const omittedEntries = categoryEntries.slice(MAX_WARNING_CATEGORIES - 1);
+    const overflowedWarnings = omittedEntries.reduce((total, [, entry]) => total + entry.count, 0);
+    summaries.push(truncateIssueMessage(`${overflowedWarnings} warning(s) across ${omittedEntries.length} additional warning category/categories omitted.`));
+  }
+  return summaries;
+}
+
+function boundDetailedMessages(messages = []) {
+  const unique = new Set();
+  const bounded = [];
+  let overflowed = 0;
+  messages.forEach((message) => {
+    const safe = truncateIssueMessage(message);
+    if (!safe || unique.has(safe)) return;
+    unique.add(safe);
+    if (bounded.length >= MAX_DETAILED_ISSUES) {
+      overflowed += 1;
+      return;
+    }
+    bounded.push(safe);
+  });
+  if (overflowed) {
+    bounded.pop();
+    overflowed += 1;
+    bounded.push(`${overflowed} additional detailed issue(s) omitted.`);
+  }
+  return bounded;
+}
+
+function boundRowIssues(entries = []) {
+  const seen = new Set();
+  const bounded = [];
+  let shown = 0;
+  let overflowed = 0;
+  for (const entry of entries) {
+    const errors = [];
+    for (const message of entry.errors || []) {
+      const safe = truncateIssueMessage(message);
+      if (!safe || seen.has(safe)) continue;
+      seen.add(safe);
+      if (shown >= MAX_DETAILED_ISSUES) {
+        overflowed += 1;
+      } else {
+        errors.push(safe);
+        shown += 1;
+      }
+    }
+    if (errors.length) {
+      bounded.push({ ...entry, errors });
+    }
+  }
+  if (overflowed) {
+    const lastEntry = bounded.at(-1);
+    if (lastEntry?.errors.length) {
+      lastEntry.errors.pop();
+      if (!lastEntry.errors.length) bounded.pop();
+      overflowed += 1;
+    }
+    bounded.push({ row: 0, errors: [`${overflowed} additional detailed issue(s) omitted.`], raw_row: {} });
+  }
+  return bounded;
+}
+
 function syntaxHighlightJson(jsonString) {
   return escapeHtml(jsonString).replace(
     /("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(?:\s*:)?|\btrue\b|\bfalse\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)/g,
@@ -410,6 +681,9 @@ function preflightStatusLabel(result) {
   if (!result) {
     return "No generated document yet.";
   }
+  if (result.stale) {
+    return "Out of date";
+  }
   if (result.errors?.length) {
     return "Blocked";
   }
@@ -421,6 +695,7 @@ function preflightStatusLabel(result) {
 
 function renderPreflight(result = null) {
   const preflight = byId("preflight");
+  const liveSummary = byId("preflight-live-summary");
   if (!preflight) {
     return;
   }
@@ -428,7 +703,8 @@ function renderPreflight(result = null) {
   const status = preflightStatusLabel(result);
   preflight.className = "preflight";
   if (!result) {
-    preflight.innerHTML = "<strong>Preflight</strong><span>No generated document yet.</span>";
+    preflight.innerHTML = "<strong id=\"preflight-heading\">Preflight</strong><span>No generated document yet.</span>";
+    if (liveSummary) liveSummary.textContent = "Preflight: no generated document yet.";
     return;
   }
 
@@ -440,19 +716,24 @@ function renderPreflight(result = null) {
     preflight.classList.add("ok");
   }
 
-  const issues = [
+  const issues = boundDetailedMessages([
     ...(result.errors || []).map((message) => ({ kind: "Error", message })),
     ...(result.warnings || []).map((message) => ({ kind: "Warning", message })),
-  ];
+  ].map((issue) => `${issue.kind}: ${issue.message}`)).map((entry) => {
+    const match = entry.match(/^(Error|Warning):\s*(.*)$/);
+    return { kind: match ? match[1] : "Issue", message: match ? match[2] : entry };
+  });
   const issueList = issues.length
     ? `<ul>${issues.map((issue) => `<li><strong>${issue.kind}:</strong> ${escapeHtml(issue.message)}</li>`).join("")}</ul>`
     : "<p>No blocking errors or warnings found.</p>";
 
-  preflight.innerHTML = `<strong>Preflight: ${status}</strong>${issueList}`;
+  preflight.innerHTML = `<strong id="preflight-heading">Preflight: ${status}</strong>${issueList}`;
+  if (liveSummary) liveSummary.textContent = `Preflight: ${status}. ${issues.length ? `${issues.length} issue${issues.length === 1 ? "" : "s"}.` : "No issues."}`;
 }
 
-function renderDocument(document, preflightResult = null) {
+function renderDocument(document, preflightResult = null, source = "") {
   state.currentDocument = document && typeof document === "object" ? document : null;
+  state.currentDocumentSource = state.currentDocument ? source : "";
   state.currentJson = state.currentDocument
     ? JSON.stringify(state.currentDocument, null, 2)
     : '{\n  "name": "AxinomIngest",\n  "items": []\n}';
@@ -468,20 +749,37 @@ function renderDocument(document, preflightResult = null) {
   renderPreflight(preflightResult);
 }
 
-function renderBlockedPreflight(errors, warnings = []) {
+function renderStaleOutput(surface) {
+  if (!state.currentDocument || state.currentDocumentSource !== surface) return;
+  updateDocumentMetaDisplay(surface);
+  renderDocument(null, {
+    stale: true,
+    ok: false,
+    status: "stale",
+    errors: [],
+    warnings: ["Inputs changed. Generate JSON again."],
+  });
+  setStatus("Inputs changed. Generate JSON again.", "warn");
+}
+
+function renderBlockedPreflight(errors, warnings = [], source = "") {
   const result = {
     ok: false,
     status: "error",
     errors: Array.isArray(errors) ? errors.filter(Boolean) : [String(errors || "Preflight failed.")],
     warnings: Array.isArray(warnings) ? warnings.filter(Boolean) : [],
   };
-  renderDocument(null, result);
+  if (state.currentDocument && source && state.currentDocumentSource !== source) {
+    renderPreflight(result);
+  } else {
+    renderDocument(null, result);
+  }
   return result;
 }
 
 function setStatus(message, kind = "") {
   const status = byId("status");
-  status.textContent = message;
+  status.textContent = truncateIssueMessage(message, MAX_STATUS_MESSAGE_LENGTH);
   status.className = `status${kind ? ` ${kind}` : ""}`;
 }
 
@@ -593,7 +891,14 @@ function allowedParentTypesFor(programType) {
 }
 
 function requiredFieldsForSingle(programType, ingestMode) {
-  const required = new Set([...(PROGRAM_TYPE_CONFIG[programType]?.required || []), "program_type"]);
+  const required = new Set(["program_type"]);
+  for (const field of PROGRAM_TYPE_CONFIG[programType]?.required || []) {
+    if (field === "index") {
+      required.add(["SEASON", "PODCAST_SEASON"].includes(programType) ? "season_index" : "episode_index");
+    } else {
+      required.add(field);
+    }
+  }
   if (ingestMode === "SIMPLE" && SIMPLE_VIDEO_REQUIRED_TYPES.has(programType)) {
     required.add("video_source");
     required.add("video_profile");
@@ -673,25 +978,6 @@ function singleFieldLabel(fieldId) {
   return labelNode ? labelNode.textContent.trim().replace(/\s+\*$/, "") : fieldId;
 }
 
-function updateIndexFieldLabel(programType) {
-  const labelNode = document.querySelector('#tab-single label[data-field="index"] .label-text');
-  if (!labelNode) {
-    return;
-  }
-
-  if (programType === "SEASON") {
-    labelNode.textContent = "Season Index (Season Number)";
-    return;
-  }
-
-  if (programType === "EPISODE") {
-    labelNode.textContent = "Episode Index (Episode Number)";
-    return;
-  }
-
-  labelNode.textContent = "Index";
-}
-
 function updateSingleParentTypeOptions() {
   const programType = byId("field-program_type").value;
   populateSingleSelect(byId("field-parent_type"), allowedParentTypesFor(programType));
@@ -711,10 +997,20 @@ function updateRequiredFieldStyles() {
 
 function updateRequiredHint() {
   const programType = byId("field-program_type").value;
-  updateIndexFieldLabel(programType);
   const required = [...requiredFieldsForSingle(programType, currentSingleIngestMode())].filter((field) => field !== "program_type");
+  const generationInputs = {
+    MOVIE: ["Title", "Studio"],
+    TVSHOW: ["Series or Title", "Studio"],
+    PODCAST: ["Series or Title", "Studio"],
+    SEASON: ["Series", "Season Number", "Studio"],
+    EPISODE: ["Series", "Season Number", "Episode Number", "Studio"],
+    PODCAST_SEASON: ["Series", "Season Number", "Studio"],
+    PODCAST_EPISODE: ["Series", "Season Number", "Episode Number", "Studio"],
+    TRAILER: ["Title", "Studio"],
+    EXTRA: ["Title", "Studio"],
+  }[programType] || [];
   byId("required-fields").textContent = required.length
-    ? `Required for ${programType} (${currentSingleIngestMode() === "FULL" ? "Full" : "Simple"}): ${required.map((field) => singleFieldLabel(field)).join(", ")}`
+    ? `Required fields for ${programType}: ${required.map((field) => singleFieldLabel(field)).join(", ")}. External ID: enter one, or provide ${generationInputs.join(" and ") || "the supported generation inputs"} to generate it.`
     : `No required field metadata found for ${programType}.`;
   updateRequiredFieldStyles();
 }
@@ -722,14 +1018,13 @@ function updateRequiredHint() {
 function updateVisibleFields() {
   const visible = currentVisibleSingleFields();
   const programType = byId("field-program_type").value;
-  updateIndexFieldLabel(programType);
   updateSingleParentTypeOptions();
   document.querySelectorAll("#single-fields-grid [data-field]").forEach((node) => {
     node.classList.toggle("hidden-field", !visible.has(node.dataset.field));
   });
   const videoProfile = byId("field-video_profile");
   if (visible.has("video_profile") && videoProfile && !normalizeString(videoProfile.value)) {
-    videoProfile.value = VIDEO_PROFILES[0] || "";
+    videoProfile.value = DEFAULT_VIDEO_PROFILE;
   }
   updateRequiredFieldStyles();
   updateAllDescriptionCounters();
@@ -743,6 +1038,33 @@ function readInputValue(node) {
     return [...node.selectedOptions].map((option) => option.value.trim()).filter(Boolean).join(", ");
   }
   return typeof node.value === "string" ? node.value.trim() : "";
+}
+
+function updateSingleGeneratedId() {
+  const externalId = byId("field-external_id");
+  const message = byId("single-external-id-state");
+  if (!externalId) return;
+  const fields = collectSinglePayload().fields;
+  const generated = generateExternalId(fields);
+  const current = normalizeString(externalId.value);
+  const isCustom = Boolean(current && current !== state.singleLastGeneratedId);
+  let generatedValueChanged = false;
+  if (!isCustom && generated.ok) {
+    generatedValueChanged = externalId.value !== generated.value;
+    externalId.value = generated.value;
+    state.singleLastGeneratedId = generated.value;
+    const parentInput = byId("field-parent_external_id");
+    if (parentInput && generated.parentExternalId && (!normalizeString(parentInput.value) || normalizeString(parentInput.value) === state.singleLastGeneratedParentId)) {
+      generatedValueChanged = generatedValueChanged || parentInput.value !== generated.parentExternalId;
+      parentInput.value = generated.parentExternalId;
+      state.singleLastGeneratedParentId = generated.parentExternalId;
+    }
+  }
+  if (message) message.textContent = isCustom ? "Custom override" : (generated.ok ? "Auto-generated" : `Needs ${generated.missing.join(", ") || "generation inputs"}`);
+  const episodeWarning = validateEpisodeExternalId(fields.program_type, externalId.value, fields.episode_index);
+  const warningRegion = byId("single-episode-warning");
+  if (warningRegion) warningRegion.textContent = episodeWarning.warning;
+  if (generatedValueChanged) syncSingleDocumentMetadata();
 }
 
 function humanizeIdentifier(value) {
@@ -804,6 +1126,7 @@ function buildDocumentName(subject, suffix) {
 function documentSubjectFromFields(fields) {
   const programType = normalizeProgramType(fields.program_type);
   const title = normalizeString(fields.title);
+  const seriesHint = normalizeString(fields.series_hint);
   const externalId = normalizeString(fields.external_id);
   const parentExternalId = normalizeString(fields.parent_external_id);
 
@@ -816,11 +1139,11 @@ function documentSubjectFromFields(fields) {
   if (programType === "PODCAST") {
     return title || humanizeIdentifier(externalId) || "Podcast";
   }
-  if (programType === "SEASON") {
-    return humanizeIdentifier(parentExternalId) || title || humanizeIdentifier(externalId) || "TV Show";
+  if (programType === "SEASON" || programType === "PODCAST_SEASON") {
+    return seriesHint || humanizeIdentifier(parentExternalId) || title || humanizeIdentifier(externalId) || (programType === "SEASON" ? "TV Show" : "Podcast");
   }
-  if (programType === "EPISODE") {
-    return humanizeIdentifier(stripSeasonSuffix(parentExternalId) || parentExternalId) || title || humanizeIdentifier(externalId) || "TV Show";
+  if (programType === "EPISODE" || programType === "PODCAST_EPISODE") {
+    return seriesHint || humanizeIdentifier(stripSeasonSuffix(parentExternalId) || parentExternalId) || title || humanizeIdentifier(externalId) || (programType === "EPISODE" ? "TV Show" : "Podcast");
   }
   if (programType === "TRAILER" || programType === "EXTRA") {
     return title || humanizeIdentifier(parentExternalId) || humanizeIdentifier(externalId) || programType;
@@ -843,26 +1166,28 @@ function suggestDocumentMetadataForFields(fields) {
   if (programType === "PODCAST") {
     return { name: buildDocumentName(subject, "Podcast Ingest"), description: `Single-item podcast ingest for ${subject}.` };
   }
-  if (programType === "SEASON") {
+  if (programType === "SEASON" || programType === "PODCAST_SEASON") {
+    const noun = programType === "PODCAST_SEASON" ? "podcast season" : "season";
     return {
       name: buildDocumentName(subject, `${index ? `S${index}` : "Season"} Ingest`),
-      description: `Single-item season ingest for ${subject}${index ? ` season ${index}` : ""}.`,
+      description: `Single-item ${noun} ingest for ${subject}${index ? ` season ${index}` : ""}.`,
     };
   }
-  if (programType === "EPISODE") {
+  if (programType === "EPISODE" || programType === "PODCAST_EPISODE") {
+    const noun = programType === "PODCAST_EPISODE" ? "podcast episode" : "episode";
     if (seasonIndex && index) {
       return {
         name: buildDocumentName(subject, `S${seasonIndex} E${index} Ingest`),
-        description: `Single-item episode ingest for ${subject}, season ${seasonIndex} episode ${index}.`,
+        description: `Single-item ${noun} ingest for ${subject}, season ${seasonIndex} episode ${index}.`,
       };
     }
     if (index) {
       return {
         name: buildDocumentName(subject, `Episode ${index} Ingest`),
-        description: `Single-item episode ingest for ${subject}, episode ${index}.`,
+        description: `Single-item ${noun} ingest for ${subject}, episode ${index}.`,
       };
     }
-    return { name: buildDocumentName(subject, "Episode Ingest"), description: `Single-item episode ingest for ${subject}.` };
+    return { name: buildDocumentName(subject, "Episode Ingest"), description: `Single-item ${noun} ingest for ${subject}.` };
   }
   if (programType === "TRAILER") {
     return { name: buildDocumentName(subject, "Trailer Ingest"), description: `Single-item trailer ingest for ${subject}.` };
@@ -879,7 +1204,10 @@ function suggestSingleDocumentMetadata() {
     title: readInputValue(byId("field-title")),
     external_id: readInputValue(byId("field-external_id")),
     parent_external_id: readInputValue(byId("field-parent_external_id")),
-    index: readInputValue(byId("field-index")),
+    series_hint: readInputValue(byId("field-series_hint")),
+    season_index: readInputValue(byId("field-season_index")),
+    episode_index: readInputValue(byId("field-episode_index")),
+    index: readInputValue(byId("field-episode_index")) || readInputValue(byId("field-season_index")),
   });
 }
 
@@ -1019,11 +1347,15 @@ function experimentalProgramTypeWarning(programType) {
 
 function preflightDocument(document, warnings = []) {
   const errors = [];
-  const normalizedWarnings = [...new Set((warnings || []).map(normalizeString).filter(Boolean))];
+  // Experimental-type warnings are derived from the generated items below so
+  // import-row compatibility diagnostics cannot count the same item twice.
+  const warningRecords = (warnings || [])
+    .map((warning) => typeof warning === "object" && warning !== null ? warning : { message: warning })
+    .filter((warning) => warningCategory(warning.category || warning.message) !== "experimental type");
 
   if (!document || typeof document !== "object") {
     errors.push("No ingest document has been generated.");
-    return { ok: false, status: "error", errors, warnings: normalizedWarnings };
+    return { ok: false, status: "error", errors, warnings: summarizeWarnings(warningRecords) };
   }
 
   const nameError = formatDocumentNameError(document.name);
@@ -1046,8 +1378,8 @@ function preflightDocument(document, warnings = []) {
     }
 
     const experimentalWarning = experimentalProgramTypeWarning(itemType);
-    if (experimentalWarning && !normalizedWarnings.some((warning) => warning.includes(experimentalWarning))) {
-      normalizedWarnings.push(experimentalWarning);
+    if (experimentalWarning) {
+      warningRecords.push({ message: experimentalWarning, category: "experimental type" });
     }
 
     if (!externalId) {
@@ -1062,11 +1394,11 @@ function preflightDocument(document, warnings = []) {
     }
   });
 
-  const uniqueWarnings = [...new Set(normalizedWarnings)];
+  const uniqueWarnings = boundDetailedMessages(summarizeWarnings(warningRecords));
   return {
     ok: errors.length === 0,
     status: errors.length ? "error" : (uniqueWarnings.length ? "warn" : "ok"),
-    errors,
+    errors: boundDetailedMessages(errors),
     warnings: uniqueWarnings,
   };
 }
@@ -1357,6 +1689,19 @@ function buildData(fields) {
     data.images = images;
   }
 
+  const languageTag = normalizeString(fields.language_tag);
+  const localizedTitle = normalizeString(fields.localized_title);
+  const localizedDescription = normalizeString(fields.localized_description);
+  const localizedSynopsis = normalizeString(fields.localized_synopsis);
+  if (languageTag && (localizedTitle || localizedDescription || localizedSynopsis)) {
+    data.localizations = [{ language_tag: languageTag, ...(localizedTitle ? { title: localizedTitle } : {}), ...(localizedDescription ? { description: localizedDescription } : {}), ...(localizedSynopsis ? { synopsis: localizedSynopsis } : {}) }];
+  }
+  const trailerSource = normalizeString(fields.trailer_source);
+  const trailerProfile = normalizeString(fields.trailer_profile);
+  if (trailerSource || trailerProfile) {
+    data.trailers = [{ ...(trailerSource ? { source: trailerSource } : {}), ...(trailerProfile ? { profile: trailerProfile } : {}) }];
+  }
+
   return data;
 }
 
@@ -1364,11 +1709,11 @@ function deriveParentExternalId(externalId, ingestType) {
   if (!externalId) {
     return "";
   }
-  if (ingestType === "EPISODE") {
+  if (ingestType === "EPISODE" || ingestType === "PODCAST_EPISODE") {
     const parent = externalId.replace(/([_-]E\d+)$/i, "");
     return parent !== externalId ? parent : "";
   }
-  if (ingestType === "SEASON") {
+  if (ingestType === "SEASON" || ingestType === "PODCAST_SEASON") {
     const parent = externalId.replace(/([_-]S\d+)$/i, "");
     return parent !== externalId ? parent : "";
   }
@@ -1390,8 +1735,21 @@ function buildItem(fields) {
   }
 
   const ingestType = config.ingestType;
-  const externalId = normalizeString(fields.external_id);
-  const parentType = normalizeProgramType(fields.parent_type);
+  const sourceCells = fields._sourceCells || {};
+  const indexResolution = resolveIndexFields({ ...fields, program_type: ingestType }, sourceCells);
+  const studioResolution = resolveStudioProvider(fields, sourceCells);
+  const identity = resolveExternalId({ ...fields, program_type: ingestType });
+  warnings.push(...indexResolution.warnings, ...studioResolution.warnings, ...identity.warnings);
+  const effectiveFields = { ...fields, program_type: ingestType, index: indexResolution.value, studio: studioResolution.value, external_id: identity.value };
+  if (!normalizeString(effectiveFields.parent_external_id) && identity.generatedParentExternalId) {
+    effectiveFields.parent_external_id = identity.generatedParentExternalId;
+    if (!normalizeString(effectiveFields.parent_type) && identity.generatedParentType) effectiveFields.parent_type = identity.generatedParentType;
+    warnings.push("Derived parent_external_id from generated external_id");
+  }
+  const profile = profileForFields(effectiveFields, { surface: fields._surface || "single", templateVersion: fields._templateVersion || "" });
+  effectiveFields.video_profile = profile.value;
+  const externalId = identity.value;
+  const parentType = normalizeProgramType(effectiveFields.parent_type);
   const releasedInput = normalizeString(fields.released);
   const licenseStartInput = normalizeString(fields.license_start);
   const licenseEndInput = normalizeString(fields.license_end);
@@ -1411,9 +1769,19 @@ function buildItem(fields) {
     warnings.push(experimentalWarning);
   }
 
-  const data = buildData(fields);
+  if (identity.source === "missing") {
+    identity.missing.forEach((field) => errors.push(`Missing generation input: ${field}`));
+  }
+  if ((normalizeString(effectiveFields.localized_title) || normalizeString(effectiveFields.localized_description) || normalizeString(effectiveFields.localized_synopsis)) && !normalizeString(effectiveFields.language_tag)) {
+    errors.push("Localized values require Language Tag");
+  }
+  if (normalizeString(effectiveFields.trailer_profile) && !normalizeString(effectiveFields.trailer_source)) {
+    errors.push("Trailer Profile requires Trailer Source");
+  }
 
-  if (ingestType === "TVSHOW" || ingestType === "PODCAST" || ingestType === "SEASON") {
+  const data = buildData(effectiveFields);
+
+  if (["TVSHOW", "PODCAST", "SEASON", "PODCAST_SEASON"].includes(ingestType)) {
     delete data.main_video;
   }
   if (ingestType === "TRAILER") {
@@ -1479,6 +1847,9 @@ function buildItem(fields) {
     }
   }
 
+  const episodeValidation = validateEpisodeExternalId(ingestType, externalId, effectiveFields.index);
+  if (episodeValidation.warning) warnings.push(episodeValidation.warning);
+
   if (!Object.keys(data).length) {
     errors.push("No metadata values were provided for data payload");
   }
@@ -1524,6 +1895,7 @@ function pickExternalId(candidates) {
 function mapRowToFields(row) {
   const mapped = {};
   const externalCandidates = [];
+  let seriesFallback = "";
 
   Object.entries(row).forEach(([header, value]) => {
     const normalizedHeader = normalizeHeader(header);
@@ -1531,6 +1903,10 @@ function mapRowToFields(row) {
     const cleaned = normalizeString(value);
     if (!field || !cleaned) {
       return;
+    }
+
+    if (normalizedHeader === "series") {
+      seriesFallback = cleaned;
     }
 
     if (field === "external_id") {
@@ -1544,14 +1920,8 @@ function mapRowToFields(row) {
   });
 
   mapped.external_id = pickExternalId(externalCandidates);
-
-  const programType = normalizeProgramType(mapped.program_type);
-  if (programType === "EPISODE") {
-    mapped.index = normalizeString(mapped.episode_index) || normalizeString(mapped.index);
-  } else if (programType === "SEASON") {
-    mapped.index = normalizeString(mapped.season_index) || normalizeString(mapped.index);
-  } else {
-    mapped.index = normalizeString(mapped.index);
+  if (/^\d+$/.test(mapped.external_id) && /[A-Za-z]/.test(seriesFallback) && seriesFallback.includes("_")) {
+    mapped.external_id = seriesFallback;
   }
 
   if (mapped.released && /^\d{4}$/.test(mapped.released)) {
@@ -1568,6 +1938,8 @@ function typeNoun(programType, plural = true) {
     PODCAST: "Podcast",
     SEASON: "Season",
     EPISODE: "Episode",
+    PODCAST_SEASON: "Podcast season",
+    PODCAST_EPISODE: "Podcast episode",
     TRAILER: "Trailer",
     EXTRA: "Extra",
   };
@@ -1583,6 +1955,13 @@ function sheetErrorFieldCandidates(field) {
     description: ["description"],
     released: ["releaseddate", "pubdate", "year"],
     index: ["seasonepnumber", "seasonepisodeindex", "episodenumber", "seasonnumber"],
+    studio: ["studio", "provider", "contentprovider"],
+    language_tag: ["languagetag", "language"],
+    localized_title: ["localizedtitle"],
+    localized_description: ["localizeddescription"],
+    localized_synopsis: ["localizedsynopsis"],
+    trailer_source: ["trailersource"],
+    trailer_profile: ["trailerprofile"],
     parent_type: ["parenttype"],
     parent_external_id: ["parentexternalid"],
     license_start: ["licensestartutc", "availabledate"],
@@ -1638,6 +2017,12 @@ function formatSheetErrorMessage(error, { rowNumber, rowCells, normalizedProgram
   } else if (error === "Field 'license_end' must be a valid date/time") {
     field = "license_end";
     message = "License End must be a valid date/time";
+  } else if (error === "Localized values require Language Tag") {
+    field = "language_tag";
+    message = "Language Tag is required when localized values are present";
+  } else if (error === "Trailer Profile requires Trailer Source") {
+    field = "trailer_profile";
+    message = "Trailer Source is required when Trailer Profile is set";
   } else if (error.startsWith("Field 'parent_type' must be one of: ")) {
     field = "parent_type";
     message = error.replace("Field 'parent_type' ", "Parent Type ");
@@ -1648,34 +2033,52 @@ function formatSheetErrorMessage(error, { rowNumber, rowCells, normalizedProgram
     message = error.replace("Duplicate external_id", "Duplicate External ID");
   }
 
-  const cellRef = field ? sheetErrorCellRef(field, rowCells || {}) : "";
+  let cellRef = field ? sheetErrorCellRef(field, rowCells || {}) : "";
+  if (!cellRef && error === "Localized values require Language Tag") {
+    cellRef = sheetErrorCellRef("localized_title", rowCells || {}) || sheetErrorCellRef("localized_description", rowCells || {}) || sheetErrorCellRef("localized_synopsis", rowCells || {});
+  }
   return cellRef ? `Error at ${cellRef}: ${message}` : `Error at row ${rowNumber}: ${message}`;
 }
 
-function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDescription = "", rowNumbers = [], rowCells = [] }) {
+function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDescription = "", rowNumbers = [], rowCells = [], templateVersion = "", surface = "bulk", unsupportedHeaders = [] }) {
   const items = [];
-  const warnings = [];
+  const warningRecords = [];
   const rowErrors = [];
+  const rowWarnings = [];
+  const compatibilityWarningRows = new Map();
   const externalIds = new Map();
+  let generatedIds = 0;
+  let defaultedProfiles = 0;
+  let preservedLegacyProfiles = 0;
+  const defaultedProfileRefs = [];
+  const addWarning = (message, category = "") => {
+    if (normalizeString(message)) warningRecords.push({ message, category });
+  };
   const safeDocumentName = sanitizeDocumentName(documentName, "AxinomIngest");
   const documentDescriptionWarning = descriptionWarning(documentDescription, "Document Description");
   if (documentDescriptionWarning) {
-    warnings.push(documentDescriptionWarning);
+    addWarning(documentDescriptionWarning, "document description length");
   }
 
+  const uniqueUnsupportedHeaders = [...new Set(unsupportedHeaders.filter(Boolean))];
+  uniqueUnsupportedHeaders.slice(0, 10).forEach((header) => addWarning(`Unsupported nonempty column '${header}' was ignored.`, "unsupported column"));
+  if (uniqueUnsupportedHeaders.length > 10) {
+    addWarning(`${uniqueUnsupportedHeaders.length - 10} additional unsupported nonempty column(s) were ignored.`, "unsupported column overflow");
+  }
   rows.forEach((row, index) => {
     const rowNumber = rowNumbers[index] || index + 2;
     const rowCellMap = rowCells[index] || {};
-    const fields = mapRowToFields(row);
+    const mappedFields = mapRowToFields(row);
 
-    if (!Object.values(fields).some((value) => normalizeString(value))) {
+    if (!Object.values(mappedFields).some((value) => normalizeString(value))) {
       return;
     }
+    const fields = { ...mappedFields, _sourceCells: Object.fromEntries(Object.entries(rowCellMap).map(([header, cell]) => [HEADER_TO_FIELD[normalizeHeader(header)] || normalizeHeader(header), cell])), _templateVersion: templateVersion, _surface: surface };
 
     const rowDescriptionWarning = descriptionWarning(fields.description, "Description");
     if (rowDescriptionWarning) {
       const descriptionCell = sheetErrorCellRef("description", rowCellMap);
-      warnings.push(descriptionCell ? `${descriptionCell}: ${rowDescriptionWarning}` : `Row ${rowNumber}: ${rowDescriptionWarning}`);
+      addWarning(descriptionCell ? `${descriptionCell}: ${rowDescriptionWarning}` : `Row ${rowNumber}: ${rowDescriptionWarning}`, "description length");
     }
 
     const buildResult = buildItem(fields);
@@ -1691,6 +2094,14 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
       });
       return;
     }
+
+    if (!normalizeString(mappedFields.external_id)) generatedIds += 1;
+    const profileResult = profileForFields(fields, { surface, templateVersion });
+    if (profileResult.defaulted) {
+      defaultedProfiles += 1;
+      defaultedProfileRefs.push(sheetErrorCellRef("video_profile", rowCellMap) || `row ${rowNumber}`);
+    }
+    if (profileResult.preservedLegacy) preservedLegacyProfiles += 1;
 
     const rowExternalId = normalizeString(buildResult.item.external_id);
     if (externalIds.has(rowExternalId)) {
@@ -1708,7 +2119,17 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
     externalIds.set(rowExternalId, rowNumber);
 
     items.push(buildResult.item);
-    buildResult.warnings.forEach((warning) => warnings.push(`Row ${rowNumber}: ${warning}`));
+    buildResult.warnings.forEach((warning) => {
+      const rowsForWarning = compatibilityWarningRows.get(warning) || [];
+      rowsForWarning.push(rowNumber);
+      compatibilityWarningRows.set(warning, rowsForWarning);
+      if (/^Episode Number .* (does not match|could not be verified)/.test(warning)) {
+        const externalCell = sheetErrorCellRef("external_id", rowCellMap);
+        const episodeCell = sheetErrorCellRef("index", rowCellMap);
+        const warningCells = [externalCell, episodeCell].filter(Boolean);
+        if (rowWarnings.length < MAX_DETAILED_ISSUES) rowWarnings.push({ row: rowNumber, warnings: warningCells.map((cell) => truncateIssueMessage(`Warning at ${cell}: ${warning}`)).slice(0, MAX_WARNING_REPRESENTATIVES) });
+      }
+    });
   });
 
   const nameError = formatDocumentNameError(safeDocumentName);
@@ -1720,6 +2141,13 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
     rowErrors.push({ row: 0, errors: ["No ingest rows found in spreadsheet."], raw_row: {} });
   }
 
+  if (defaultedProfiles && surface === "bulk" && normalizeString(templateVersion).replace(/^v/i, "") === "2.2.0") {
+    addWarning(`Defaulted Video Profile to ${DEFAULT_VIDEO_PROFILE} for ${defaultedProfiles} row(s); representative source: ${defaultedProfileRefs[0]}.`, "defaulted video profile");
+  }
+  compatibilityWarningRows.forEach((rowNumbersForWarning, warning) => {
+    addWarning(`${warning} (${rowNumbersForWarning.length} row(s); representative row ${rowNumbersForWarning[0]}).`, warningCategory(warning));
+  });
+
   let document = items.length
     ? {
         name: safeDocumentName,
@@ -1729,7 +2157,7 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
         helper_version: HELPER_VERSION,
       }
     : null;
-  const preflight = document ? preflightDocument(document, warnings) : null;
+  const preflight = document ? preflightDocument(document, warningRecords) : null;
   if (preflight?.errors.length) {
     rowErrors.push({ row: 0, errors: preflight.errors, raw_row: {} });
   }
@@ -1741,14 +2169,19 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
   return {
     ok,
     document,
-    errors: rowErrors,
-    warnings: preflight?.warnings || warnings,
+    errors: boundRowIssues(rowErrors),
+    warnings: preflight?.warnings || summarizeWarnings(warningRecords),
+    rowWarnings: rowWarnings.slice(0, MAX_DETAILED_ISSUES),
     preflight,
     stats: {
       source: sourceName,
       sheet: sheetName,
       rows_read: rows.length,
       items_created: items.length,
+      generated_ids: generatedIds,
+      defaulted_profiles: defaultedProfiles,
+      preserved_legacy_profiles: preservedLegacyProfiles,
+      template_version: templateVersion || "legacy/unknown",
       rows_failed: rowErrors.length,
     },
   };
@@ -1784,6 +2217,9 @@ function validateSinglePayload(payload) {
     if (fieldId === "program_type") {
       return;
     }
+    if (fieldId === "external_id" && generateExternalId(payload.fields).ok) {
+      return;
+    }
     if (!normalizeString(payload.fields[fieldId])) {
       missingLabels.push(singleFieldLabel(fieldId));
     }
@@ -1800,14 +2236,14 @@ function generateSingle() {
   payload.name = normalizeDocumentNameInput(byId("single-name"), "AxinomSingleIngest");
   const validationError = validateSinglePayload(payload);
   if (validationError) {
-    renderBlockedPreflight([validationError]);
+    renderBlockedPreflight([validationError], [], "single");
     setStatus(validationError, "error");
     return;
   }
 
   const buildResult = buildItem(payload.fields);
   if (buildResult.errors.length) {
-    renderBlockedPreflight(buildResult.errors, buildResult.warnings);
+    renderBlockedPreflight(buildResult.errors, buildResult.warnings, "single");
     setStatus(buildResult.errors.join(" | "), "error");
     return;
   }
@@ -1827,8 +2263,8 @@ function generateSingle() {
   ].filter(Boolean);
   const preflight = preflightDocument(document, warnings);
 
-  updateAllDocumentMetaDisplays(document);
-  renderDocument(preflight.ok ? document : null, preflight);
+  updateDocumentMetaDisplay("single", document.document_created);
+  renderDocument(preflight.ok ? document : null, preflight, "single");
   setCurrentDownloadName(document.name);
 
   if (!preflight.ok) {
@@ -1845,10 +2281,13 @@ function generateSingle() {
 }
 
 function clearSingle() {
+  renderStaleOutput("single");
   byId("field-program_type").value = "MOVIE";
   byId("single-ingest-mode").value = "SIMPLE";
   state.singleNameDirty = false;
   state.singleDescriptionDirty = false;
+  state.singleLastGeneratedId = "";
+  state.singleLastGeneratedParentId = "";
 
   SINGLE_FIELD_IDS.forEach((fieldId) => {
     const element = byId(`field-${fieldId}`);
@@ -1865,14 +2304,16 @@ function clearSingle() {
   });
 
   byId("single-description").value = "";
-  updateAllDocumentMetaDisplays();
+  updateDocumentMetaDisplay("single");
   updateAllDescriptionCounters();
   syncSingleDocumentMetadata(true);
   updateRequiredHint();
   updateVisibleFields();
-  renderDocument(null);
-  renderPreflight();
-  setStatus("Ready.");
+  updateSingleGeneratedId();
+  if (!state.currentDocument) {
+    renderPreflight();
+    setStatus("Ready.");
+  }
 }
 
 function formatErrors(result) {
@@ -1941,7 +2382,7 @@ function directInputConfig(columnName) {
   if (columnName === "License Start (UTC)" || columnName === "License End (UTC)") {
     return { kind: "input", type: "datetime-local" };
   }
-  if (columnName === "Season/Ep Number") {
+  if (columnName === "Season Number" || columnName === "Episode Number") {
     return { kind: "input", type: "number" };
   }
   if (columnName === "Production Countries") {
@@ -2142,15 +2583,61 @@ function updateDirectParentTypeOptions(row, preferredValue = "") {
   if (!assetTypeInput || !parentTypeInput) {
     return;
   }
-  populateSingleSelect(parentTypeInput, allowedParentTypesFor(assetTypeInput.value), preferredValue || parentTypeInput.value);
+  const type = normalizeProgramType(assetTypeInput.value);
+  const implied = { SEASON: "TVSHOW", EPISODE: "SEASON", PODCAST_SEASON: "PODCAST", PODCAST_EPISODE: "PODCAST_SEASON" }[type] || "";
+  populateSingleSelect(parentTypeInput, allowedParentTypesFor(type), preferredValue || parentTypeInput.value || implied);
+  const profileInput = directRowInput(row, "Video Profile");
+  if (profileInput && VIDEO_BEARING_TYPES.has(type) && !normalizeString(profileInput.value)) profileInput.value = DEFAULT_VIDEO_PROFILE;
+}
+
+function updateDirectGeneratedId(row) {
+  const externalInput = directRowInput(row, "External ID");
+  const parentInput = directRowInput(row, "Parent External ID");
+  if (!externalInput) return;
+  const values = {};
+  DIRECT_COLUMNS.forEach((column) => { values[column] = readDirectCellValue(directRowInput(row, column), column); });
+  const generated = generateExternalId(mapRowToFields(values));
+  const current = normalizeString(externalInput.value);
+  const lastGenerated = normalizeString(row.dataset.lastGeneratedExternalId);
+  if (generated.ok && (!current || current === lastGenerated)) {
+    externalInput.value = generated.value;
+    row.dataset.lastGeneratedExternalId = generated.value;
+  }
+  if (parentInput && generated.parentExternalId) {
+    const currentParent = normalizeString(parentInput.value);
+    const lastParent = normalizeString(row.dataset.lastGeneratedParentExternalId);
+    if (!currentParent || currentParent === lastParent) {
+      parentInput.value = generated.parentExternalId;
+      row.dataset.lastGeneratedParentExternalId = generated.parentExternalId;
+    }
+  }
 }
 
 function updateDirectRowNumbers() {
   byId("direct-table").querySelectorAll("tbody tr").forEach((row, index) => {
+    const rowNumber = index + 2;
     const marker = row.querySelector(".row-marker");
     if (marker) {
-      marker.textContent = String(index + 1);
+      marker.textContent = String(rowNumber);
+      marker.id = `direct-row-${rowNumber}`;
+      marker.scope = "row";
     }
+    DIRECT_COLUMNS.forEach((column) => {
+      const control = directRowInput(row, column);
+      const columnId = `direct-column-${directColumnKey(column)}`;
+      const rowId = `direct-row-${rowNumber}`;
+      if (!control) return;
+      control.setAttribute("aria-labelledby", `${columnId} ${rowId}`);
+      if (control.matches?.("details")) {
+        const summary = control.querySelector("summary");
+        if (summary) summary.setAttribute("aria-labelledby", `${columnId} ${rowId}`);
+        control.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+          input.setAttribute("aria-label", `${column}, row ${rowNumber}, ${input.value}`);
+        });
+        const manual = control.querySelector('[data-country-manual="true"]');
+        if (manual) manual.setAttribute("aria-label", `${column}, row ${rowNumber}, other codes`);
+      }
+    });
   });
 }
 
@@ -2158,8 +2645,9 @@ function appendDirectRow(initialValues = {}) {
   const tbody = byId("direct-table").querySelector("tbody");
   const row = document.createElement("tr");
 
-  const marker = document.createElement("td");
+  const marker = document.createElement("th");
   marker.className = "row-marker";
+  marker.scope = "row";
   row.appendChild(marker);
 
   DIRECT_COLUMNS.forEach((column) => {
@@ -2172,24 +2660,44 @@ function appendDirectRow(initialValues = {}) {
 
     eventTargets.forEach((target) => {
       target.addEventListener("input", () => {
+        renderStaleOutput("direct");
         control.classList.remove("is-invalid");
+        control.removeAttribute("aria-invalid");
+        target.removeAttribute("aria-invalid");
+        control.querySelectorAll?.('[aria-invalid="true"]').forEach((node) => node.removeAttribute("aria-invalid"));
         if (column === "Description") {
           updateDirectDescriptionInput(target);
         }
         syncDirectDocumentMetadata();
+        if (["Asset Type", "Title", "Studio", "Series", "Season Number", "Episode Number", "Parent Type", "External ID", "Parent External ID"].includes(column)) updateDirectGeneratedId(row);
       });
       target.addEventListener("change", () => {
+        renderStaleOutput("direct");
         control.classList.remove("is-invalid");
+        control.removeAttribute("aria-invalid");
+        target.removeAttribute("aria-invalid");
+        control.querySelectorAll?.('[aria-invalid="true"]').forEach((node) => node.removeAttribute("aria-invalid"));
         if (column === "Description") {
           updateDirectDescriptionInput(target);
         }
         syncDirectDocumentMetadata();
+        if (["Asset Type", "Title", "Studio", "Series", "Season Number", "Episode Number", "Parent Type", "External ID", "Parent External ID"].includes(column)) updateDirectGeneratedId(row);
       });
     });
 
     if (column === "Asset Type") {
       eventTargets.forEach((target) => {
         target.addEventListener("change", () => updateDirectParentTypeOptions(row));
+      });
+    }
+
+    if (column === "Video Source") {
+      eventTargets.forEach((target) => {
+        target.addEventListener("input", () => {
+          const type = normalizeProgramType(readDirectCellValue(directRowInput(row, "Asset Type"), "Asset Type"));
+          const profile = directRowInput(row, "Video Profile");
+          if (VIDEO_BEARING_TYPES.has(type) && normalizeString(target.value) && profile && !normalizeString(profile.value)) profile.value = DEFAULT_VIDEO_PROFILE;
+        });
       });
     }
 
@@ -2209,10 +2717,14 @@ function buildDirectTable() {
   const thead = document.createElement("thead");
   const headRow = document.createElement("tr");
   const rowHeader = document.createElement("th");
+  rowHeader.scope = "col";
+  rowHeader.id = "direct-column-row";
   rowHeader.textContent = "#";
   headRow.appendChild(rowHeader);
   DIRECT_COLUMNS.forEach((column) => {
     const th = document.createElement("th");
+    th.scope = "col";
+    th.id = `direct-column-${directColumnKey(column)}`;
     th.textContent = column;
     headRow.appendChild(th);
   });
@@ -2278,7 +2790,8 @@ function focusDirectCell(cellRef) {
 }
 
 function clearDirectValidation({ hideIssues = true } = {}) {
-  byId("direct-table").querySelectorAll(".is-invalid").forEach((node) => node.classList.remove("is-invalid"));
+  byId("direct-table").querySelectorAll(".is-invalid, .is-warning").forEach((node) => node.classList.remove("is-invalid", "is-warning"));
+  byId("direct-table").querySelectorAll('[aria-invalid="true"]').forEach((node) => node.removeAttribute("aria-invalid"));
   if (hideIssues) {
     const issues = byId("direct-issues");
     if (issues) {
@@ -2288,7 +2801,7 @@ function clearDirectValidation({ hideIssues = true } = {}) {
   }
 }
 
-function renderDirectIssues(rowErrors) {
+function renderDirectIssues(rowErrors, rowWarnings = []) {
   const issues = byId("direct-issues");
   if (!issues) {
     return;
@@ -2297,18 +2810,22 @@ function renderDirectIssues(rowErrors) {
   (rowErrors || []).forEach((entry) => {
     (entry.errors || []).forEach((message) => messages.push(message));
   });
+  (rowWarnings || []).forEach((entry) => {
+    (entry.warnings || []).forEach((message) => messages.push(message));
+  });
 
-  if (!messages.length) {
+  const boundedMessages = boundDetailedMessages(messages);
+  if (!boundedMessages.length) {
     issues.hidden = true;
     issues.innerHTML = "";
     return;
   }
 
   issues.hidden = false;
-  issues.innerHTML = `<strong>Direct Sheet issues</strong><ul>${messages.map((message, index) => {
-    const match = message.match(/^Error at ([A-Z]+\d+):/);
+  issues.innerHTML = `<strong id="direct-issues-heading">Direct Sheet issues</strong><ul>${boundedMessages.map((message, index) => {
+    const match = message.match(/^(?:Error|Warning) at ([A-Z]+\d+):/);
     const cellRef = match ? match[1] : "";
-    return `<li>${cellRef ? `<button type="button" class="issue-link" data-cell-ref="${cellRef}">${cellRef}</button> ` : ""}${escapeHtml(message.replace(/^Error at [A-Z]+\d+:\s*/, ""))}</li>`;
+    return `<li class="${message.startsWith("Warning") ? "warning" : "error"}">${cellRef ? `<button type="button" class="issue-link" data-cell-ref="${cellRef}">${cellRef}</button> ` : ""}${escapeHtml(message.replace(/^(?:Error|Warning) at [A-Z]+\d+:\s*/, ""))}</li>`;
   }).join("")}</ul>`;
 
   issues.querySelectorAll("[data-cell-ref]").forEach((button) => {
@@ -2316,7 +2833,7 @@ function renderDirectIssues(rowErrors) {
   });
 }
 
-function markDirectValidationIssues(rowErrors) {
+function markDirectValidationIssues(rowErrors, rowWarnings = []) {
   clearDirectValidation({ hideIssues: false });
   (rowErrors || []).forEach((entry) => {
     (entry.errors || []).forEach((message) => {
@@ -2324,13 +2841,23 @@ function markDirectValidationIssues(rowErrors) {
       const control = match ? directControlFromCellRef(match[1]) : null;
       if (control) {
         control.classList.add("is-invalid");
+        control.setAttribute("aria-invalid", "true");
+        control.querySelectorAll?.("input, select, textarea, summary").forEach((node) => node.setAttribute("aria-invalid", "true"));
       }
     });
   });
-  renderDirectIssues(rowErrors);
+  (rowWarnings || []).forEach((entry) => {
+    (entry.warnings || []).forEach((message) => {
+      const match = message.match(/^Warning at ([A-Z]+\d+):/);
+      const control = match ? directControlFromCellRef(match[1]) : null;
+      if (control) control.classList.add("is-warning");
+    });
+  });
+  renderDirectIssues(rowErrors, rowWarnings);
 }
 
 function clearDirectRows() {
+  renderStaleOutput("direct");
   buildDirectTable();
   clearDirectValidation();
   syncDirectDocumentMetadata();
@@ -2341,7 +2868,7 @@ function convertDirectRows() {
   const documentName = normalizeDocumentNameInput(byId("direct-name"), "AxinomDirectSheetIngest");
   const nameError = formatDocumentNameError(documentName);
   if (nameError) {
-    renderBlockedPreflight([nameError]);
+    renderBlockedPreflight([nameError], [], "direct");
     setStatus(nameError, "error");
     return;
   }
@@ -2349,7 +2876,7 @@ function convertDirectRows() {
   const directRows = readDirectRowsDetailed();
   if (!directRows.rows.length) {
     const message = "Enter at least one row in the direct sheet.";
-    renderBlockedPreflight([message]);
+    renderBlockedPreflight([message], [], "direct");
     setStatus(message, "error");
     return;
   }
@@ -2362,22 +2889,24 @@ function convertDirectRows() {
     documentDescription: normalizeString(byId("direct-description").value),
     rowNumbers: directRows.rowNumbers,
     rowCells: directRows.rowCells,
+    surface: "direct",
   });
 
   if (result.document) {
-    updateAllDocumentMetaDisplays(result.document);
-    renderDocument(result.document, result.preflight);
+    updateDocumentMetaDisplay("direct", result.document.document_created);
+    renderDocument(result.document, result.preflight, "direct");
     setCurrentDownloadName(result.document.name || documentName);
   }
 
   if (!result.ok) {
-    markDirectValidationIssues(result.errors);
-    renderBlockedPreflight(result.errors.flatMap((entry) => entry.errors || []), result.warnings);
+    markDirectValidationIssues(result.errors, result.rowWarnings);
+    renderBlockedPreflight(result.errors.flatMap((entry) => entry.errors || []), result.warnings, "direct");
     setStatus(formatErrors(result), "error");
     return;
   }
 
   const summary = `Converted ${result.stats.items_created || 0} direct row item(s) from ${result.stats.rows_read || 0} row(s).`;
+  markDirectValidationIssues([], result.rowWarnings);
   if (result.warnings.length) {
     setStatus(`${summary} Warning(s): ${result.warnings.join(" | ")}`, "warn");
     return;
@@ -2430,14 +2959,45 @@ function updateBulkImportAvailability() {
   }
 }
 
-async function inflateRaw(data, expectedSize = 0, fileName = "workbook entry") {
+async function readStreamWithLimits(stream, { fileName = "workbook entry", entryLimit = MAX_ZIP_ENTRY_BYTES, totalState = { total: 0 }, totalLimit = MAX_TOTAL_UNCOMPRESSED_BYTES } = {}) {
+  const reader = stream.getReader();
+  const chunks = [];
+  let entrySize = 0;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const chunk = value instanceof Uint8Array ? value : new Uint8Array(value);
+      const nextEntrySize = entrySize + chunk.byteLength;
+      const nextTotalSize = totalState.total + chunk.byteLength;
+      if (nextEntrySize > entryLimit || nextTotalSize > totalLimit) {
+        await reader.cancel("Workbook decompression limit exceeded");
+        const limitName = nextEntrySize > entryLimit ? `ZIP entry ${fileName}` : "Workbook uncompressed content";
+        const limit = nextEntrySize > entryLimit ? entryLimit : totalLimit;
+        throw new Error(`${limitName} exceeds the ${Math.round(limit / (1024 * 1024))} MB decompression limit.`);
+      }
+      chunks.push(chunk);
+      entrySize = nextEntrySize;
+      totalState.total = nextTotalSize;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const output = new Uint8Array(entrySize);
+  let offset = 0;
+  chunks.forEach((chunk) => {
+    output.set(chunk, offset);
+    offset += chunk.byteLength;
+  });
+  return output;
+}
+
+async function inflateRaw(data, expectedSize = 0, fileName = "workbook entry", totalState = { total: 0 }, limits = {}) {
   const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-  const inflated = new Uint8Array(await new Response(stream).arrayBuffer());
+  const inflated = await readStreamWithLimits(stream, { fileName, totalState, ...limits });
   if (expectedSize && inflated.length !== expectedSize) {
     throw new Error(`Workbook ZIP entry ${fileName} decompressed to an unexpected size.`);
-  }
-  if (inflated.length > MAX_ZIP_ENTRY_BYTES) {
-    throw new Error(`Workbook ZIP entry ${fileName} is too large after decompression.`);
   }
   return inflated;
 }
@@ -2508,6 +3068,7 @@ async function unzipEntries(arrayBuffer) {
   let directoryOffset = readUint32LE(view, eocdOffset + 16);
   const entries = new Map();
   let totalUncompressedSize = 0;
+  const actualUncompressedState = { total: 0 };
 
   for (let index = 0; index < totalEntries; index += 1) {
     if (directoryOffset + 46 > bytes.length) {
@@ -2556,9 +3117,20 @@ async function unzipEntries(arrayBuffer) {
         throw new Error(`Workbook ZIP entry ${fileName} has an unexpected stored size.`);
       }
     } else if (compressionMethod === 8) {
-      contentBytes = await inflateRaw(compressedBytes, uncompressedSize, fileName);
+      contentBytes = await inflateRaw(compressedBytes, uncompressedSize, fileName, actualUncompressedState);
     } else {
       throw new Error(`Unsupported workbook compression method ${compressionMethod} for ${fileName}.`);
+    }
+
+    if (contentBytes.length > MAX_ZIP_ENTRY_BYTES) {
+      throw new Error(`Workbook ZIP entry ${fileName} is too large after decompression.`);
+    }
+    if (compressionMethod === 0) {
+      const nextActualTotal = actualUncompressedState.total + contentBytes.length;
+      if (nextActualTotal > MAX_TOTAL_UNCOMPRESSED_BYTES) {
+        throw new Error(`Workbook uncompressed content exceeds the ${Math.round(MAX_TOTAL_UNCOMPRESSED_BYTES / (1024 * 1024))} MB limit.`);
+      }
+      actualUncompressedState.total = nextActualTotal;
     }
 
     entries.set(fileName, contentBytes);
@@ -2630,7 +3202,7 @@ function parseWorkbookSheets(entries) {
     const name = sheet.getAttribute("name") || "Sheet";
     const rid = sheet.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id") || sheet.getAttribute("r:id");
     const target = relMap.get(rid);
-    return target ? { name, target: target.startsWith("/") ? target.replace(/^\//, "") : concatPath("xl/workbook.xml", target) } : null;
+    return target ? { name, state: sheet.getAttribute("state") || "visible", target: target.startsWith("/") ? target.replace(/^\//, "") : concatPath("xl/workbook.xml", target) } : null;
   }).filter(Boolean);
 }
 
@@ -2755,6 +3327,18 @@ function extractHeaderAndRecords(rawRows, workbookOptions = {}) {
   return { headers, records, rowNumbers, rowCells, headerCells };
 }
 
+function classifyTemplateVersion(headers = []) {
+  const normalized = new Set(headers.map(normalizeHeader).filter(Boolean));
+  const has = (...names) => names.every((name) => normalized.has(name));
+  if (DIRECT_COLUMNS.every((header) => normalized.has(normalizeHeader(header)))) return "v2.2.0";
+  if (has("assettype", "externalid", "title", "languagetag")) return "v1.2";
+  if (has("assettype", "externalid", "title", "trailersource")) return "v1.3-v1.5.4";
+  if (has("assettype", "externalid", "title", "seasonepnumber", "videoprofile") && !normalized.has("parenttype")) return "v1.0/v1.1";
+  if (has("assettype", "externalid", "title", "videoprofile")) return "v2.0.2-v2.1.2";
+  if (has("assettype", "externalid", "title")) return "v1.0/v1.1";
+  return "legacy/unknown";
+}
+
 async function parseXlsxRows(file, preferredSheetName = "") {
   assertWorkbookFile(file);
   const entries = await unzipEntries(await file.arrayBuffer());
@@ -2764,7 +3348,7 @@ async function parseXlsxRows(file, preferredSheetName = "") {
     throw new Error("No sheets found in workbook.");
   }
 
-  let selectedSheet = sheets[0];
+  let selectedSheet = sheets.find((sheet) => sheet.state === "visible" && !/^_(meta|lists)$/i.test(sheet.name)) || sheets[0];
   if (normalizeString(preferredSheetName)) {
     const found = sheets.find((sheet) => sheet.name.toLowerCase() === preferredSheetName.toLowerCase());
     if (found) {
@@ -2775,6 +3359,20 @@ async function parseXlsxRows(file, preferredSheetName = "") {
   const sharedStrings = parseSharedStrings(entries);
   const rawRows = parseSheetRows(entries, selectedSheet.target, sharedStrings);
   const extracted = extractHeaderAndRecords(rawRows, { date1904 });
+  const metaSheet = sheets.find((sheet) => /^_meta$/i.test(sheet.name));
+  let templateVersion = "";
+  if (metaSheet) {
+    const meta = extractHeaderAndRecords(parseSheetRows(entries, metaSheet.target, sharedStrings), { date1904 });
+    meta.records.forEach((row) => {
+      const key = normalizeString(row.key || row.Key || row.name || row.Name).toLowerCase();
+      if (key === "template_version") templateVersion = normalizeString(row.value || row.Value || row.template_version);
+    });
+  }
+  if (!templateVersion) templateVersion = classifyTemplateVersion(extracted.headers);
+  const unsupportedHeaders = extracted.headers.filter((header) => {
+    if (!header || HEADER_TO_FIELD[normalizeHeader(header)]) return false;
+    return extracted.records.some((row) => normalizeString(row[header]));
+  });
 
   return {
     sheetName: selectedSheet.name,
@@ -2783,6 +3381,8 @@ async function parseXlsxRows(file, preferredSheetName = "") {
     rowNumbers: extracted.rowNumbers,
     rowCells: extracted.rowCells,
     headerCells: extracted.headerCells,
+    templateVersion,
+    unsupportedHeaders,
   };
 }
 
@@ -2791,7 +3391,7 @@ async function convertBulk() {
   const file = fileInput.files && fileInput.files[0];
   if (!file) {
     const message = "Choose a .xlsx file first.";
-    renderBlockedPreflight([message]);
+    renderBlockedPreflight([message], [], "bulk");
     setStatus(message, "error");
     return;
   }
@@ -2799,7 +3399,7 @@ async function convertBulk() {
   const documentName = normalizeDocumentNameInput(byId("bulk-name"), "AxinomBulkIngest");
   const nameError = formatDocumentNameError(documentName);
   if (nameError) {
-    renderBlockedPreflight([nameError]);
+    renderBlockedPreflight([nameError], [], "bulk");
     setStatus(nameError, "error");
     return;
   }
@@ -2816,28 +3416,30 @@ async function convertBulk() {
       documentDescription: normalizeString(byId("bulk-description").value),
       rowNumbers: parsed.rowNumbers,
       rowCells: parsed.rowCells,
+      templateVersion: parsed.templateVersion,
+      unsupportedHeaders: parsed.unsupportedHeaders,
     });
 
     if (result.document) {
-      updateAllDocumentMetaDisplays(result.document);
-      renderDocument(result.document, result.preflight);
+      updateDocumentMetaDisplay("bulk", result.document.document_created);
+      renderDocument(result.document, result.preflight, "bulk");
       setCurrentDownloadName(result.document.name || documentName);
     }
 
     if (!result.ok) {
-      renderBlockedPreflight(result.errors.flatMap((entry) => entry.errors || []), result.warnings);
+      renderBlockedPreflight(result.errors.flatMap((entry) => entry.errors || []), result.warnings, "bulk");
       setStatus(formatErrors(result), "error");
       return;
     }
 
-    const summary = `Converted ${result.stats.items_created || 0} item(s) from ${result.stats.rows_read || 0} row(s) on sheet '${result.stats.sheet || ""}'.`;
+    const summary = `Converted ${result.stats.items_created || 0} item(s) from ${result.stats.rows_read || 0} row(s) on sheet '${result.stats.sheet || ""}' (${parsed.templateVersion || "legacy/unknown"}; generated IDs: ${result.stats.generated_ids || 0}; defaulted profiles: ${result.stats.defaulted_profiles || 0}; preserved legacy profiles: ${result.stats.preserved_legacy_profiles || 0}).`;
     if (result.warnings.length) {
       setStatus(`${summary} Warning(s): ${result.warnings.join(" | ")}`, "warn");
       return;
     }
     setStatus(summary, "ok");
   } catch (error) {
-    renderBlockedPreflight([`Excel conversion failed: ${error.message}`]);
+    renderBlockedPreflight([`Excel conversion failed: ${error.message}`], [], "bulk");
     setStatus(`Excel conversion failed: ${error.message}`, "error");
   }
 }
@@ -2870,23 +3472,35 @@ function bindEvents() {
   byId("theme-toggle").addEventListener("click", toggleTheme);
 
   byId("field-program_type").addEventListener("change", () => {
+    renderStaleOutput("single");
     updateRequiredHint();
     updateVisibleFields();
     syncSingleDocumentMetadata();
+    updateSingleGeneratedId();
   });
   byId("single-ingest-mode").addEventListener("change", () => {
+    renderStaleOutput("single");
     updateRequiredHint();
     updateVisibleFields();
   });
 
-  ["field-title", "field-index", "field-parent_external_id", "field-external_id"].forEach((id) => {
-    byId(id).addEventListener("input", () => syncSingleDocumentMetadata());
+  ["field-title", "field-series_hint", "field-season_index", "field-episode_index", "field-studio", "field-parent_type", "field-parent_external_id", "field-external_id"].forEach((id) => {
+    byId(id).addEventListener("input", () => {
+      renderStaleOutput("single");
+      syncSingleDocumentMetadata();
+      updateSingleGeneratedId();
+    });
+    byId(id).addEventListener("change", () => {
+      renderStaleOutput("single");
+      updateSingleGeneratedId();
+    });
   });
 
   byId("single-name").addEventListener("input", () => {
     if (state.autoSyncingDocumentMetadata) {
       return;
     }
+    renderStaleOutput("single");
     state.singleNameDirty = Boolean(normalizeString(byId("single-name").value));
     if (!state.singleNameDirty) {
       syncSingleDocumentMetadata();
@@ -2898,6 +3512,7 @@ function bindEvents() {
     if (state.autoSyncingDocumentMetadata) {
       return;
     }
+    renderStaleOutput("single");
     state.singleDescriptionDirty = Boolean(normalizeString(byId("single-description").value));
     if (!state.singleDescriptionDirty) {
       syncSingleDocumentMetadata();
@@ -2905,12 +3520,22 @@ function bindEvents() {
     updateAllDescriptionCounters();
   });
 
-  byId("field-description").addEventListener("input", updateAllDescriptionCounters);
+  byId("field-description").addEventListener("input", () => {
+    renderStaleOutput("single");
+    updateAllDescriptionCounters();
+  });
+
+  const handledSingleFieldIds = new Set(["field-program_type", "field-description", "field-title", "field-series_hint", "field-season_index", "field-episode_index", "field-studio", "field-parent_type", "field-parent_external_id", "field-external_id"]);
+  document.querySelectorAll("#tab-single [data-field] input, #tab-single [data-field] select, #tab-single [data-field] textarea").forEach((control) => {
+    if (handledSingleFieldIds.has(control.id)) return;
+    ["input", "change"].forEach((eventName) => control.addEventListener(eventName, () => renderStaleOutput("single")));
+  });
 
   byId("bulk-name").addEventListener("input", () => {
     if (state.autoSyncingDocumentMetadata) {
       return;
     }
+    renderStaleOutput("bulk");
     state.bulkNameDirty = Boolean(normalizeString(byId("bulk-name").value));
   });
 
@@ -2918,16 +3543,19 @@ function bindEvents() {
     if (state.autoSyncingDocumentMetadata) {
       return;
     }
+    renderStaleOutput("bulk");
     state.bulkDescriptionDirty = Boolean(normalizeString(byId("bulk-description").value));
     updateAllDescriptionCounters();
   });
 
   byId("bulk-file").addEventListener("change", () => {
+    renderStaleOutput("bulk");
     updateBulkImportAvailability();
     void syncBulkDocumentMetadata();
   });
 
   byId("bulk-sheet").addEventListener("input", () => {
+    renderStaleOutput("bulk");
     void syncBulkDocumentMetadata();
   });
 
@@ -2935,6 +3563,7 @@ function bindEvents() {
     if (state.autoSyncingDocumentMetadata) {
       return;
     }
+    renderStaleOutput("direct");
     state.directNameDirty = Boolean(normalizeString(byId("direct-name").value));
   });
 
@@ -2942,6 +3571,7 @@ function bindEvents() {
     if (state.autoSyncingDocumentMetadata) {
       return;
     }
+    renderStaleOutput("direct");
     state.directDescriptionDirty = Boolean(normalizeString(byId("direct-description").value));
     updateAllDescriptionCounters();
   });
@@ -2950,7 +3580,10 @@ function bindEvents() {
   byId("clear-single").addEventListener("click", clearSingle);
   byId("convert-bulk").addEventListener("click", () => { void convertBulk(); });
   byId("download-template-bulk").addEventListener("click", () => renderTemplateDownload(byId("bulk-template-version").value));
-  byId("add-direct-row").addEventListener("click", () => appendDirectRow());
+  byId("add-direct-row").addEventListener("click", () => {
+    renderStaleOutput("direct");
+    appendDirectRow();
+  });
   byId("clear-direct-rows").addEventListener("click", clearDirectRows);
   byId("convert-direct").addEventListener("click", convertDirectRows);
   byId("download-template-direct").addEventListener("click", () => renderTemplateDownload(byId("direct-template-version").value));
@@ -2980,6 +3613,7 @@ function init() {
   updateAllDescriptionCounters();
   updateRequiredHint();
   updateVisibleFields();
+  updateSingleGeneratedId();
   renderDocument(null);
   setStatus("Ready.");
 }
@@ -3000,19 +3634,35 @@ if (typeof module !== "undefined") {
     MAX_TOTAL_UNCOMPRESSED_BYTES,
     PROGRAM_TYPES,
     PROGRAM_TYPE_CONFIG,
+    DEFAULT_VIDEO_PROFILE,
+    ACTIVE_VIDEO_PROFILES,
+    LEGACY_VIDEO_PROFILES,
     VIDEO_PROFILES,
     TEMPLATE_FILES,
     assertWorkbookFile,
     buildDocumentName,
     buildItem,
+    boundDetailedMessages,
     descriptionWarning,
     formatDocumentNameError,
+    inflateRaw,
     mapRowToFields,
+    normalizeGuidComponent,
+    normalizeProgramType,
     parseDateTimeToUtcString,
     parseDateValue,
     preflightDocument,
+    readStreamWithLimits,
     rowsToDocument,
+    resolveExternalId,
+    resolveStudioProvider,
+    generateExternalId,
+    classifyTemplateVersion,
+    validateEpisodeExternalId,
+    profileForFields,
+    requiredFieldsForSingle,
     sanitizeDocumentName,
+    summarizeWarnings,
     suggestDocumentMetadataForFields,
     workbookSupportError,
   };

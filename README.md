@@ -19,7 +19,17 @@ to prepare ingest JSON in a browser.
 
 The current workbook is available from the helper's **Download Template**
 button or at
-[`docs/reference/axinom_ingest_template_v2_1_2.xlsx`](docs/reference/axinom_ingest_template_v2_1_2.xlsx).
+[`docs/reference/axinom_ingest_template_v2_2_0.xlsx`](docs/reference/axinom_ingest_template_v2_2_0.xlsx).
+
+## External IDs and video profiles
+
+- Leave External ID blank when the required title or series hierarchy and Studio are available; the helper generates it in the browser.
+- Entering an External ID creates a manual override that the helper preserves.
+- CVP workbooks may label Studio as `Provider` or `Content Provider`; both map to Axinom Studio metadata.
+- New video-bearing entries default to `HLS-DASH_Non-DRM`. The active profiles are `HLS-DASH_Non-DRM`, `HLS-DASH_DRM`, `LAS_HLS-DASH_Non-DRM`, and `LAS_HLS-DASH_DRM`. Explicit profiles from older workbooks are preserved instead of migrated; `LAS_CMAF_File_Non-DRM` remains compatible for imports and is never silently migrated.
+- Episode-number and External-ID suffix mismatches are warnings, so review them before ingest.
+
+`PODCAST`, `PODCAST_SEASON`, and `PODCAST_EPISODE` are available for experimental testing and use a `P_` External ID hierarchy. Validate those exact types in the intended Axinom environment before production use.
 
 ## Data handling
 
@@ -28,6 +38,12 @@ files and generated JSON are not transmitted to an application backend.
 
 Operators should review generated documents and validate them in the intended
 environment before a production ingest.
+
+Generated JSON is derived from the inputs at conversion time. If those inputs
+change, regenerate the output before using it. Large warning sets are summarized
+with bounded representative details. Direct Sheet controls retain accessible row
+and column context, including sticky identifiers. XLSX decompressed content is
+streamed and bounded during local parsing.
 
 ## Local use
 
