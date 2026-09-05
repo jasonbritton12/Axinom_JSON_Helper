@@ -19,14 +19,18 @@ to prepare ingest JSON in a browser.
 
 The current workbook is available from the helper's **Download Template**
 button or at
-[`docs/reference/axinom_ingest_template_v2_2_0.xlsx`](docs/reference/axinom_ingest_template_v2_2_0.xlsx).
+[`docs/reference/axinom_ingest_template_v2_3_0.xlsx`](docs/reference/axinom_ingest_template_v2_3_0.xlsx).
 
 ## External IDs and video profiles
 
-- Leave External ID blank when the required title or series hierarchy and Studio are available; the helper generates it in the browser.
+- Select `English` or `Spanish` for every item. Language is required in Single Title, Bulk Excel, and Direct Sheet.
+- The helper uses Language for generated IDs and profile validation; it does not add a separate Language field to the ingest JSON.
+- Leave External ID blank when the required title or series hierarchy, Studio, and Language are available; the helper generates it in the browser.
 - Entering an External ID creates a manual override that the helper preserves.
 - CVP workbooks may label Studio as `Provider` or `Content Provider`; both map to Axinom Studio metadata.
-- New video-bearing entries default to `HLS-DASH_Non-DRM`. The active profiles are `HLS-DASH_Non-DRM`, `HLS-DASH_DRM`, `LAS_HLS-DASH_Non-DRM`, and `LAS_HLS-DASH_DRM`. Explicit profiles from older workbooks are preserved instead of migrated; `LAS_CMAF_File_Non-DRM` remains compatible for imports and is never silently migrated.
+- English video rows offer `HLS-DASH_Non-DRM` (default) and `HLS-DASH_DRM`. Spanish video rows offer `LAS_HLS-DASH_Non-DRM` (default) and `LAS_HLS-DASH_DRM`.
+- Spanish generated External IDs include `_las` between the title or series component and the Studio component.
+- Explicit profiles from older workbooks are preserved instead of migrated; `LAS_CMAF_File_Non-DRM` remains compatible for imports and is never silently migrated. Older workbooks without Language require an explicit fallback selection during import.
 - Episode-number and External-ID suffix mismatches are warnings, so review them before ingest.
 
 `PODCAST`, `PODCAST_SEASON`, and `PODCAST_EPISODE` are available for experimental testing and use a `P_` External ID hierarchy. Validate those exact types in the intended Axinom environment before production use.

@@ -1,5 +1,5 @@
-const APP_RELEASE_LABEL = "v2.2.0";
-const HELPER_VERSION = "v2.2.0";
+const APP_RELEASE_LABEL = "v2.3.0";
+const HELPER_VERSION = "v2.3.0";
 const DOCUMENT_NAME_MAX_LENGTH = 50;
 const DESCRIPTION_WARN_LENGTH = 150;
 const THEME_STORAGE_KEY = "axinom_ingest_theme";
@@ -16,20 +16,27 @@ const MAX_STATUS_MESSAGE_LENGTH = 2000;
 const PROGRAM_TYPES = ["MOVIE", "TVSHOW", "SEASON", "EPISODE", "PODCAST", "PODCAST_SEASON", "PODCAST_EPISODE", "TRAILER", "EXTRA"];
 const EXPERIMENTAL_PROGRAM_TYPES = new Set(["PODCAST", "PODCAST_SEASON", "PODCAST_EPISODE"]);
 const AXINOM_CONFIRMED_INGEST_TYPES = new Set(["MOVIE", "TVSHOW", "SEASON", "EPISODE", "TRAILER", "EXTRA"]);
+const CONTENT_LANGUAGES = ["English", "Spanish"];
 const DEFAULT_VIDEO_PROFILE = "HLS-DASH_Non-DRM";
+const VIDEO_PROFILES_BY_LANGUAGE = {
+  English: ["HLS-DASH_Non-DRM", "HLS-DASH_DRM"],
+  Spanish: ["LAS_HLS-DASH_Non-DRM", "LAS_HLS-DASH_DRM"],
+};
+const DEFAULT_VIDEO_PROFILE_BY_LANGUAGE = {
+  English: "HLS-DASH_Non-DRM",
+  Spanish: "LAS_HLS-DASH_Non-DRM",
+};
 const ACTIVE_VIDEO_PROFILES = [
-  DEFAULT_VIDEO_PROFILE,
-  "HLS-DASH_DRM",
-  "LAS_HLS-DASH_Non-DRM",
-  "LAS_HLS-DASH_DRM",
+  ...VIDEO_PROFILES_BY_LANGUAGE.English,
+  ...VIDEO_PROFILES_BY_LANGUAGE.Spanish,
 ];
 const LEGACY_VIDEO_PROFILES = new Set(["LAS_CMAF_File_Non-DRM", "CMAF_File_Non-DRM", "CMAF_File_DRM", "CMAF_File_Non-DRM_SD", "CMAF_File_DRM_SD", "DEFAULT", "nDRM (HLS)", "DRM (DASH & HLS)", "nDRM (HLS-Only) HD", "DRM (HLS+Dash) HD", "nDRM (HLS-Only) SD", "DRM (HLS+Dash) SD"]);
 const VIDEO_PROFILES = ACTIVE_VIDEO_PROFILES;
 const VIDEO_BEARING_TYPES = new Set(["MOVIE", "EPISODE", "PODCAST_EPISODE", "TRAILER", "EXTRA"]);
 const COMMON_COUNTRY_CODES = ["US", "CA"];
 const TEMPLATE_FILES = {
-  latest: "docs/reference/axinom_ingest_template_v2_2_0.xlsx",
-  current: "docs/reference/axinom_ingest_template_v2_2_0.xlsx",
+  latest: "docs/reference/axinom_ingest_template_v2_3_0.xlsx",
+  current: "docs/reference/axinom_ingest_template_v2_3_0.xlsx",
 };
 
 const PROGRAM_TYPE_CONFIG = {
@@ -98,6 +105,9 @@ const SIMPLE_FIELD_VISIBILITY = {
 
 const SIMPLE_VIDEO_REQUIRED_TYPES = VIDEO_BEARING_TYPES;
 
+Object.values(FULL_FIELD_VISIBILITY).forEach((fields) => fields.add("content_language"));
+Object.values(SIMPLE_FIELD_VISIBILITY).forEach((fields) => fields.add("content_language"));
+
 const HEADER_TO_FIELD = {
   assettype: "program_type",
   programtype: "program_type",
@@ -137,8 +147,9 @@ const HEADER_TO_FIELD = {
   videoprofile: "video_profile",
   coverimage: "cover_image",
   teaserimage: "teaser_image",
+  language: "content_language",
+  contentlanguage: "content_language",
   languagetag: "language_tag",
-  language: "language_tag",
   localizedtitle: "localized_title",
   localizeddescription: "localized_description",
   localizedsynopsis: "localized_synopsis",
@@ -155,6 +166,7 @@ const DIRECT_COLUMNS = [
   "Synopsis",
   "Released Date",
   "Studio",
+  "Language",
   "Series",
   "Season Number",
   "Episode Number",
@@ -173,6 +185,8 @@ const DIRECT_COLUMNS = [
   "Teaser Image",
 ];
 
+const V2_2_COLUMNS = DIRECT_COLUMNS.filter((column) => column !== "Language");
+
 const SINGLE_FIELD_IDS = [
   "program_type",
   "external_id",
@@ -182,6 +196,7 @@ const SINGLE_FIELD_IDS = [
   "synopsis",
   "released",
   "studio",
+  "content_language",
   "series_hint",
   "season_index",
   "episode_index",
@@ -226,6 +241,38 @@ function normalizeString(value) {
   return typeof value === "string" ? value.trim() : String(value || "").trim();
 }
 
+function normalizeContentLanguage(value) {
+  const normalized = normalizeString(value).toLowerCase();
+  if (normalized === "english") return "English";
+  if (normalized === "spanish") return "Spanish";
+  return "";
+}
+
+function videoProfilesForLanguage(value) {
+  const language = normalizeContentLanguage(value);
+  return language ? [...VIDEO_PROFILES_BY_LANGUAGE[language]] : [];
+}
+
+function defaultVideoProfileForLanguage(value) {
+  const language = normalizeContentLanguage(value);
+  return language ? DEFAULT_VIDEO_PROFILE_BY_LANGUAGE[language] : "";
+}
+
+function languageForVideoProfile(value) {
+  const profile = normalizeString(value);
+  if (VIDEO_PROFILES_BY_LANGUAGE.English.includes(profile)) return "English";
+  if (VIDEO_PROFILES_BY_LANGUAGE.Spanish.includes(profile)) return "Spanish";
+  if (/^LAS_/i.test(profile)) return "Spanish";
+  if (profile && profile !== "DEFAULT" && LEGACY_VIDEO_PROFILES.has(profile)) return "English";
+  return "";
+}
+
+function externalIdBase(prefix, entity, language, studio) {
+  return [prefix, entity, normalizeContentLanguage(language) === "Spanish" ? "las" : "", studio]
+    .filter(Boolean)
+    .join("_");
+}
+
 function normalizeGuidComponent(value) {
   return normalizeString(value)
     .toLowerCase()
@@ -267,11 +314,12 @@ function resolveIndexFields(fields = {}, sourceCells = {}) {
 function generationInputs(fields, programType) {
   const studio = resolveStudioProvider(fields);
   const indices = resolveIndexFields({ ...fields, program_type: programType });
+  const contentLanguage = normalizeContentLanguage(fields.content_language);
   const series = normalizeString(fields.series_hint);
   const title = normalizeString(fields.title);
   const season = normalizeString(fields.season_index || (["SEASON", "PODCAST_SEASON"].includes(programType) ? indices.value : fields.season_index));
   const episode = normalizeString(fields.episode_index || (["EPISODE", "PODCAST_EPISODE"].includes(programType) ? indices.value : fields.episode_index));
-  return { studio, series, title, season, episode };
+  return { studio, contentLanguage, series, title, season, episode };
 }
 
 function generateExternalId(fields = {}) {
@@ -284,6 +332,7 @@ function generateExternalId(fields = {}) {
     else if (!normalizeGuidComponent(value)) missing.push(`${label} (empty after normalization)`);
   };
   const titleOrSeries = input.series || input.title;
+  if (!input.contentLanguage) missing.push("Language");
   if (["TVSHOW", "PODCAST"].includes(programType)) require(titleOrSeries, "Series or Title");
   else if (["SEASON", "EPISODE", "PODCAST_SEASON", "PODCAST_EPISODE"].includes(programType)) require(input.series, "Series");
   else if (["MOVIE", "TRAILER", "EXTRA"].includes(programType)) require(input.title, "Title");
@@ -300,26 +349,26 @@ function generateExternalId(fields = {}) {
   let value = "";
   let parentExternalId = "";
   let parentType = "";
-  if (["TVSHOW", "PODCAST"].includes(programType)) value = `${root}_${entity}_${studio}`;
+  const rootId = externalIdBase(root, entity, input.contentLanguage, studio);
+  if (["TVSHOW", "PODCAST"].includes(programType)) value = rootId;
   if (["SEASON", "PODCAST_SEASON"].includes(programType)) {
-    parentExternalId = `${root}_${entity}_${studio}`;
+    parentExternalId = rootId;
     parentType = programType === "SEASON" ? "TVSHOW" : "PODCAST";
     value = `${parentExternalId}_S${season}`;
   }
   if (["EPISODE", "PODCAST_EPISODE"].includes(programType)) {
-    const rootId = `${root}_${entity}_${studio}`;
     parentExternalId = `${rootId}_S${season}`;
     parentType = programType === "EPISODE" ? "SEASON" : "PODCAST_SEASON";
     value = `${parentExternalId}_E${episode}`;
   }
-  if (programType === "MOVIE") value = `M_${entity}_${studio}`;
-  if (programType === "TRAILER") value = `M_${entity}_${studio}_preview`;
+  if (programType === "MOVIE") value = externalIdBase("M", entity, input.contentLanguage, studio);
+  if (programType === "TRAILER") value = `${externalIdBase("M", entity, input.contentLanguage, studio)}_preview`;
   if (programType === "EXTRA") {
-    value = `EX_${entity}_${studio}`;
+    value = externalIdBase("EX", entity, input.contentLanguage, studio);
     const suppliedParent = normalizeProgramType(fields.parent_type);
     if (input.series && ["TVSHOW", "PODCAST"].includes(suppliedParent)) {
       const extraRoot = suppliedParent === "PODCAST" ? "P" : "S";
-      parentExternalId = `${extraRoot}_${normalizeGuidComponent(input.series)}_${studio}`;
+      parentExternalId = externalIdBase(extraRoot, normalizeGuidComponent(input.series), input.contentLanguage, studio);
       parentType = suppliedParent;
     }
   }
@@ -345,13 +394,37 @@ function validateEpisodeExternalId(programType, externalId, episodeNumber) {
 
 function profileForFields(fields = {}, { surface = "single", templateVersion = "" } = {}) {
   const supplied = normalizeString(fields.video_profile);
-  if (supplied) return { value: supplied, defaulted: false, preservedLegacy: LEGACY_VIDEO_PROFILES.has(supplied) };
+  const contentLanguage = normalizeContentLanguage(fields.content_language);
+  if (supplied) {
+    const preservedLegacy = LEGACY_VIDEO_PROFILES.has(supplied);
+    const profileLanguage = languageForVideoProfile(supplied);
+    return {
+      value: supplied,
+      defaulted: false,
+      preservedLegacy,
+      languageMismatch: Boolean(!preservedLegacy && contentLanguage && profileLanguage && profileLanguage !== contentLanguage),
+      languageUnverified: Boolean(contentLanguage && (preservedLegacy || !profileLanguage)),
+    };
+  }
   const type = normalizeProgramType(fields.program_type);
-  if (!VIDEO_BEARING_TYPES.has(type) || !normalizeString(fields.video_source)) return { value: "", defaulted: false, preservedLegacy: false };
+  if (!VIDEO_BEARING_TYPES.has(type) || !normalizeString(fields.video_source)) return { value: "", defaulted: false, preservedLegacy: false, languageMismatch: false, languageUnverified: false };
   const normalizedVersion = normalizeString(templateVersion).replace(/^v/i, "");
-  const currentImport = surface === "bulk" && normalizedVersion === "2.2.0";
-  if (surface === "single" || surface === "direct" || currentImport) return { value: DEFAULT_VIDEO_PROFILE, defaulted: true, preservedLegacy: false };
-  return { value: "", defaulted: false, preservedLegacy: false };
+  const currentImport = surface === "bulk" && normalizedVersion === "2.3.0";
+  const defaultProfile = defaultVideoProfileForLanguage(contentLanguage);
+  if ((surface === "single" || surface === "direct" || currentImport) && defaultProfile) {
+    return { value: defaultProfile, defaulted: true, preservedLegacy: false, languageMismatch: false, languageUnverified: false };
+  }
+  return { value: "", defaulted: false, preservedLegacy: false, languageMismatch: false, languageUnverified: false };
+}
+
+function validateExternalIdLanguage(value, contentLanguage, label = "External ID") {
+  const externalId = normalizeString(value);
+  const language = normalizeContentLanguage(contentLanguage);
+  if (!externalId || !language) return "";
+  const hasSpanishMarker = /_las_/i.test(externalId);
+  if (language === "Spanish" && !hasSpanishMarker) return `${label} does not contain the Spanish _las marker.`;
+  if (language === "English" && hasSpanishMarker) return `${label} contains the Spanish _las marker while Language is English.`;
+  return "";
 }
 
 function pascalCaseToken(token) {
@@ -891,7 +964,7 @@ function allowedParentTypesFor(programType) {
 }
 
 function requiredFieldsForSingle(programType, ingestMode) {
-  const required = new Set(["program_type"]);
+  const required = new Set(["program_type", "content_language"]);
   for (const field of PROGRAM_TYPE_CONFIG[programType]?.required || []) {
     if (field === "index") {
       required.add(["SEASON", "PODCAST_SEASON"].includes(programType) ? "season_index" : "episode_index");
@@ -983,8 +1056,28 @@ function updateSingleParentTypeOptions() {
   populateSingleSelect(byId("field-parent_type"), allowedParentTypesFor(programType));
 }
 
+function equivalentVideoProfileForLanguage(profile, contentLanguage) {
+  const language = normalizeContentLanguage(contentLanguage);
+  const normalizedProfile = normalizeString(profile);
+  const sourceLanguage = languageForVideoProfile(normalizedProfile);
+  if (!language || !sourceLanguage || !VIDEO_PROFILES_BY_LANGUAGE[sourceLanguage].includes(normalizedProfile)) return "";
+  const profileIndex = VIDEO_PROFILES_BY_LANGUAGE[sourceLanguage].indexOf(normalizedProfile);
+  return VIDEO_PROFILES_BY_LANGUAGE[language][profileIndex] || "";
+}
+
 function updateSingleVideoProfileOptions() {
-  populateSingleSelect(byId("field-video_profile"), VIDEO_PROFILES, byId("field-video_profile")?.value);
+  const select = byId("field-video_profile");
+  if (!select) return;
+  const language = normalizeContentLanguage(byId("field-content_language")?.value);
+  const current = normalizeString(select.value);
+  const source = normalizeString(byId("field-video_source")?.value);
+  const allowed = videoProfilesForLanguage(language);
+  const next = allowed.includes(current)
+    ? current
+    : (equivalentVideoProfileForLanguage(current, language) || (source ? defaultVideoProfileForLanguage(language) : ""));
+  populateSingleSelect(select, allowed, next);
+  select.disabled = !language;
+  select.title = language ? "" : "Choose Language first";
 }
 
 function updateRequiredFieldStyles() {
@@ -1022,10 +1115,7 @@ function updateVisibleFields() {
   document.querySelectorAll("#single-fields-grid [data-field]").forEach((node) => {
     node.classList.toggle("hidden-field", !visible.has(node.dataset.field));
   });
-  const videoProfile = byId("field-video_profile");
-  if (visible.has("video_profile") && videoProfile && !normalizeString(videoProfile.value)) {
-    videoProfile.value = DEFAULT_VIDEO_PROFILE;
-  }
+  updateSingleVideoProfileOptions();
   updateRequiredFieldStyles();
   updateAllDescriptionCounters();
 }
@@ -1740,7 +1830,14 @@ function buildItem(fields) {
   const studioResolution = resolveStudioProvider(fields, sourceCells);
   const identity = resolveExternalId({ ...fields, program_type: ingestType });
   warnings.push(...indexResolution.warnings, ...studioResolution.warnings, ...identity.warnings);
-  const effectiveFields = { ...fields, program_type: ingestType, index: indexResolution.value, studio: studioResolution.value, external_id: identity.value };
+  const rawContentLanguage = normalizeString(fields.content_language);
+  const contentLanguage = normalizeContentLanguage(rawContentLanguage);
+  const effectiveFields = { ...fields, program_type: ingestType, index: indexResolution.value, studio: studioResolution.value, content_language: contentLanguage, external_id: identity.value };
+  if (!rawContentLanguage) {
+    errors.push("Missing required field: content_language");
+  } else if (!contentLanguage) {
+    errors.push(`Field 'content_language' must be one of: ${CONTENT_LANGUAGES.join(", ")}`);
+  }
   if (!normalizeString(effectiveFields.parent_external_id) && identity.generatedParentExternalId) {
     effectiveFields.parent_external_id = identity.generatedParentExternalId;
     if (!normalizeString(effectiveFields.parent_type) && identity.generatedParentType) effectiveFields.parent_type = identity.generatedParentType;
@@ -1748,6 +1845,11 @@ function buildItem(fields) {
   }
   const profile = profileForFields(effectiveFields, { surface: fields._surface || "single", templateVersion: fields._templateVersion || "" });
   effectiveFields.video_profile = profile.value;
+  if (profile.languageMismatch) {
+    errors.push(`Video Profile '${profile.value}' is not allowed for Language '${contentLanguage}'`);
+  } else if (profile.languageUnverified && profile.value) {
+    warnings.push(`Video Profile '${profile.value}' was preserved, but its Language compatibility could not be verified.`);
+  }
   const externalId = identity.value;
   const parentType = normalizeProgramType(effectiveFields.parent_type);
   const releasedInput = normalizeString(fields.released);
@@ -1770,7 +1872,15 @@ function buildItem(fields) {
   }
 
   if (identity.source === "missing") {
-    identity.missing.forEach((field) => errors.push(`Missing generation input: ${field}`));
+    identity.missing.filter((field) => field !== "Language").forEach((field) => errors.push(`Missing generation input: ${field}`));
+  }
+  if (identity.source === "supplied") {
+    const languageWarning = validateExternalIdLanguage(externalId, contentLanguage);
+    if (languageWarning) warnings.push(languageWarning);
+  }
+  if (normalizeString(fields.parent_external_id)) {
+    const parentLanguageWarning = validateExternalIdLanguage(fields.parent_external_id, contentLanguage, "Parent External ID");
+    if (parentLanguageWarning) warnings.push(parentLanguageWarning);
   }
   if ((normalizeString(effectiveFields.localized_title) || normalizeString(effectiveFields.localized_description) || normalizeString(effectiveFields.localized_synopsis)) && !normalizeString(effectiveFields.language_tag)) {
     errors.push("Localized values require Language Tag");
@@ -1892,14 +2002,27 @@ function pickExternalId(candidates) {
   return bestValue;
 }
 
-function mapRowToFields(row) {
+function isCurrentLanguageTemplate(templateVersion, surface = "bulk") {
+  if (surface === "single" || surface === "direct") return true;
+  return normalizeString(templateVersion).replace(/^v/i, "") === "2.3.0";
+}
+
+function fieldForHeader(header, value, { templateVersion = "", surface = "bulk" } = {}) {
+  const normalizedHeader = normalizeHeader(header);
+  if (normalizedHeader === "language" && !isCurrentLanguageTemplate(templateVersion, surface) && !normalizeContentLanguage(value)) {
+    return "language_tag";
+  }
+  return HEADER_TO_FIELD[normalizedHeader];
+}
+
+function mapRowToFields(row, options = {}) {
   const mapped = {};
   const externalCandidates = [];
   let seriesFallback = "";
 
   Object.entries(row).forEach(([header, value]) => {
     const normalizedHeader = normalizeHeader(header);
-    const field = HEADER_TO_FIELD[normalizedHeader];
+    const field = fieldForHeader(header, value, options);
     const cleaned = normalizeString(value);
     if (!field || !cleaned) {
       return;
@@ -1956,6 +2079,7 @@ function sheetErrorFieldCandidates(field) {
     released: ["releaseddate", "pubdate", "year"],
     index: ["seasonepnumber", "seasonepisodeindex", "episodenumber", "seasonnumber"],
     studio: ["studio", "provider", "contentprovider"],
+    content_language: ["language", "contentlanguage"],
     language_tag: ["languagetag", "language"],
     localized_title: ["localizedtitle"],
     localized_description: ["localizeddescription"],
@@ -2001,6 +2125,8 @@ function formatSheetErrorMessage(error, { rowNumber, rowCells, normalizedProgram
       message = `${typeNoun(normalizedProgramType)} must have a parent type`;
     } else if (field === "parent_external_id") {
       message = `${typeNoun(normalizedProgramType)} must have a parent external ID`;
+    } else if (field === "content_language") {
+      message = "Language is required";
     }
   } else if (error === "Field 'index' must be an integer greater than 0") {
     field = "index";
@@ -2023,6 +2149,11 @@ function formatSheetErrorMessage(error, { rowNumber, rowCells, normalizedProgram
   } else if (error === "Trailer Profile requires Trailer Source") {
     field = "trailer_profile";
     message = "Trailer Source is required when Trailer Profile is set";
+  } else if (error.startsWith("Field 'content_language' must be one of: ")) {
+    field = "content_language";
+    message = error.replace("Field 'content_language'", "Language");
+  } else if (error.startsWith("Video Profile '") && error.includes(" is not allowed for Language '")) {
+    field = "video_profile";
   } else if (error.startsWith("Field 'parent_type' must be one of: ")) {
     field = "parent_type";
     message = error.replace("Field 'parent_type' ", "Parent Type ");
@@ -2040,7 +2171,7 @@ function formatSheetErrorMessage(error, { rowNumber, rowCells, normalizedProgram
   return cellRef ? `Error at ${cellRef}: ${message}` : `Error at row ${rowNumber}: ${message}`;
 }
 
-function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDescription = "", rowNumbers = [], rowCells = [], templateVersion = "", surface = "bulk", unsupportedHeaders = [] }) {
+function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDescription = "", rowNumbers = [], rowCells = [], templateVersion = "", surface = "bulk", unsupportedHeaders = [], fallbackLanguage = "" }) {
   const items = [];
   const warningRecords = [];
   const rowErrors = [];
@@ -2068,12 +2199,15 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
   rows.forEach((row, index) => {
     const rowNumber = rowNumbers[index] || index + 2;
     const rowCellMap = rowCells[index] || {};
-    const mappedFields = mapRowToFields(row);
+    const mappedFields = mapRowToFields(row, { templateVersion, surface });
 
     if (!Object.values(mappedFields).some((value) => normalizeString(value))) {
       return;
     }
-    const fields = { ...mappedFields, _sourceCells: Object.fromEntries(Object.entries(rowCellMap).map(([header, cell]) => [HEADER_TO_FIELD[normalizeHeader(header)] || normalizeHeader(header), cell])), _templateVersion: templateVersion, _surface: surface };
+    if (!mappedFields.content_language && !isCurrentLanguageTemplate(templateVersion, surface)) {
+      mappedFields.content_language = normalizeContentLanguage(fallbackLanguage);
+    }
+    const fields = { ...mappedFields, _sourceCells: Object.fromEntries(Object.entries(rowCellMap).map(([header, cell]) => [fieldForHeader(header, row[header], { templateVersion, surface }) || normalizeHeader(header), cell])), _templateVersion: templateVersion, _surface: surface };
 
     const rowDescriptionWarning = descriptionWarning(fields.description, "Description");
     if (rowDescriptionWarning) {
@@ -2141,8 +2275,8 @@ function rowsToDocument({ rows, documentName, sourceName, sheetName, documentDes
     rowErrors.push({ row: 0, errors: ["No ingest rows found in spreadsheet."], raw_row: {} });
   }
 
-  if (defaultedProfiles && surface === "bulk" && normalizeString(templateVersion).replace(/^v/i, "") === "2.2.0") {
-    addWarning(`Defaulted Video Profile to ${DEFAULT_VIDEO_PROFILE} for ${defaultedProfiles} row(s); representative source: ${defaultedProfileRefs[0]}.`, "defaulted video profile");
+  if (defaultedProfiles && surface === "bulk" && normalizeString(templateVersion).replace(/^v/i, "") === "2.3.0") {
+    addWarning(`Defaulted Video Profile from Language for ${defaultedProfiles} row(s); representative source: ${defaultedProfileRefs[0]}.`, "defaulted video profile");
   }
   compatibilityWarningRows.forEach((rowNumbersForWarning, warning) => {
     addWarning(`${warning} (${rowNumbersForWarning.length} row(s); representative row ${rowNumbersForWarning[0]}).`, warningCategory(warning));
@@ -2373,6 +2507,9 @@ function directInputConfig(columnName) {
   if (columnName === "Parent Type") {
     return { kind: "parent-type-select" };
   }
+  if (columnName === "Language") {
+    return { kind: "content-language-select" };
+  }
   if (columnName === "License Countries") {
     return { kind: "country-picker" };
   }
@@ -2530,6 +2667,14 @@ function createCellInput(columnName, initialValue = "") {
     return select;
   }
 
+  if (config.kind === "content-language-select") {
+    const select = document.createElement("select");
+    populateSingleSelect(select, CONTENT_LANGUAGES, initialValue);
+    select.required = true;
+    select.setAttribute("aria-required", "true");
+    return select;
+  }
+
   if (config.kind === "video-profile-select") {
     const select = document.createElement("select");
     populateSingleSelect(select, VIDEO_PROFILES, initialValue);
@@ -2586,8 +2731,22 @@ function updateDirectParentTypeOptions(row, preferredValue = "") {
   const type = normalizeProgramType(assetTypeInput.value);
   const implied = { SEASON: "TVSHOW", EPISODE: "SEASON", PODCAST_SEASON: "PODCAST", PODCAST_EPISODE: "PODCAST_SEASON" }[type] || "";
   populateSingleSelect(parentTypeInput, allowedParentTypesFor(type), preferredValue || parentTypeInput.value || implied);
+  updateDirectVideoProfileOptions(row);
+}
+
+function updateDirectVideoProfileOptions(row) {
   const profileInput = directRowInput(row, "Video Profile");
-  if (profileInput && VIDEO_BEARING_TYPES.has(type) && !normalizeString(profileInput.value)) profileInput.value = DEFAULT_VIDEO_PROFILE;
+  if (!profileInput) return;
+  const language = normalizeContentLanguage(readDirectCellValue(directRowInput(row, "Language"), "Language"));
+  const source = readDirectCellValue(directRowInput(row, "Video Source"), "Video Source");
+  const current = normalizeString(profileInput.value);
+  const allowed = videoProfilesForLanguage(language);
+  const next = allowed.includes(current)
+    ? current
+    : (equivalentVideoProfileForLanguage(current, language) || (source ? defaultVideoProfileForLanguage(language) : ""));
+  populateSingleSelect(profileInput, allowed, next);
+  profileInput.disabled = !language;
+  profileInput.title = language ? "" : "Choose Language first";
 }
 
 function updateDirectGeneratedId(row) {
@@ -2669,7 +2828,7 @@ function appendDirectRow(initialValues = {}) {
           updateDirectDescriptionInput(target);
         }
         syncDirectDocumentMetadata();
-        if (["Asset Type", "Title", "Studio", "Series", "Season Number", "Episode Number", "Parent Type", "External ID", "Parent External ID"].includes(column)) updateDirectGeneratedId(row);
+        if (["Asset Type", "Title", "Studio", "Language", "Series", "Season Number", "Episode Number", "Parent Type", "External ID", "Parent External ID"].includes(column)) updateDirectGeneratedId(row);
       });
       target.addEventListener("change", () => {
         renderStaleOutput("direct");
@@ -2681,7 +2840,7 @@ function appendDirectRow(initialValues = {}) {
           updateDirectDescriptionInput(target);
         }
         syncDirectDocumentMetadata();
-        if (["Asset Type", "Title", "Studio", "Series", "Season Number", "Episode Number", "Parent Type", "External ID", "Parent External ID"].includes(column)) updateDirectGeneratedId(row);
+        if (["Asset Type", "Title", "Studio", "Language", "Series", "Season Number", "Episode Number", "Parent Type", "External ID", "Parent External ID"].includes(column)) updateDirectGeneratedId(row);
       });
     });
 
@@ -2691,12 +2850,16 @@ function appendDirectRow(initialValues = {}) {
       });
     }
 
+    if (column === "Language") {
+      eventTargets.forEach((target) => {
+        target.addEventListener("change", () => updateDirectVideoProfileOptions(row));
+      });
+    }
+
     if (column === "Video Source") {
       eventTargets.forEach((target) => {
         target.addEventListener("input", () => {
-          const type = normalizeProgramType(readDirectCellValue(directRowInput(row, "Asset Type"), "Asset Type"));
-          const profile = directRowInput(row, "Video Profile");
-          if (VIDEO_BEARING_TYPES.has(type) && normalizeString(target.value) && profile && !normalizeString(profile.value)) profile.value = DEFAULT_VIDEO_PROFILE;
+          updateDirectVideoProfileOptions(row);
         });
       });
     }
@@ -3330,7 +3493,8 @@ function extractHeaderAndRecords(rawRows, workbookOptions = {}) {
 function classifyTemplateVersion(headers = []) {
   const normalized = new Set(headers.map(normalizeHeader).filter(Boolean));
   const has = (...names) => names.every((name) => normalized.has(name));
-  if (DIRECT_COLUMNS.every((header) => normalized.has(normalizeHeader(header)))) return "v2.2.0";
+  if (DIRECT_COLUMNS.every((header) => normalized.has(normalizeHeader(header)))) return "v2.3.0";
+  if (V2_2_COLUMNS.every((header) => normalized.has(normalizeHeader(header)))) return "v2.2.0";
   if (has("assettype", "externalid", "title", "languagetag")) return "v1.2";
   if (has("assettype", "externalid", "title", "trailersource")) return "v1.3-v1.5.4";
   if (has("assettype", "externalid", "title", "seasonepnumber", "videoprofile") && !normalized.has("parenttype")) return "v1.0/v1.1";
@@ -3408,6 +3572,7 @@ async function convertBulk() {
 
   try {
     const parsed = await parseXlsxRows(file, normalizeString(byId("bulk-sheet").value));
+    const fallbackLanguage = normalizeContentLanguage(byId("bulk-language-fallback")?.value);
     const result = rowsToDocument({
       rows: parsed.rows,
       documentName,
@@ -3418,6 +3583,7 @@ async function convertBulk() {
       rowCells: parsed.rowCells,
       templateVersion: parsed.templateVersion,
       unsupportedHeaders: parsed.unsupportedHeaders,
+      fallbackLanguage,
     });
 
     if (result.document) {
@@ -3484,14 +3650,16 @@ function bindEvents() {
     updateVisibleFields();
   });
 
-  ["field-title", "field-series_hint", "field-season_index", "field-episode_index", "field-studio", "field-parent_type", "field-parent_external_id", "field-external_id"].forEach((id) => {
+  ["field-title", "field-series_hint", "field-season_index", "field-episode_index", "field-studio", "field-content_language", "field-parent_type", "field-parent_external_id", "field-external_id", "field-video_source"].forEach((id) => {
     byId(id).addEventListener("input", () => {
       renderStaleOutput("single");
+      if (id === "field-content_language" || id === "field-video_source") updateSingleVideoProfileOptions();
       syncSingleDocumentMetadata();
       updateSingleGeneratedId();
     });
     byId(id).addEventListener("change", () => {
       renderStaleOutput("single");
+      if (id === "field-content_language" || id === "field-video_source") updateSingleVideoProfileOptions();
       updateSingleGeneratedId();
     });
   });
@@ -3525,7 +3693,7 @@ function bindEvents() {
     updateAllDescriptionCounters();
   });
 
-  const handledSingleFieldIds = new Set(["field-program_type", "field-description", "field-title", "field-series_hint", "field-season_index", "field-episode_index", "field-studio", "field-parent_type", "field-parent_external_id", "field-external_id"]);
+  const handledSingleFieldIds = new Set(["field-program_type", "field-description", "field-title", "field-series_hint", "field-season_index", "field-episode_index", "field-studio", "field-content_language", "field-parent_type", "field-parent_external_id", "field-external_id", "field-video_source"]);
   document.querySelectorAll("#tab-single [data-field] input, #tab-single [data-field] select, #tab-single [data-field] textarea").forEach((control) => {
     if (handledSingleFieldIds.has(control.id)) return;
     ["input", "change"].forEach((eventName) => control.addEventListener(eventName, () => renderStaleOutput("single")));
@@ -3557,6 +3725,10 @@ function bindEvents() {
   byId("bulk-sheet").addEventListener("input", () => {
     renderStaleOutput("bulk");
     void syncBulkDocumentMetadata();
+  });
+
+  byId("bulk-language-fallback").addEventListener("change", () => {
+    renderStaleOutput("bulk");
   });
 
   byId("direct-name").addEventListener("input", () => {
@@ -3634,7 +3806,10 @@ if (typeof module !== "undefined") {
     MAX_TOTAL_UNCOMPRESSED_BYTES,
     PROGRAM_TYPES,
     PROGRAM_TYPE_CONFIG,
+    CONTENT_LANGUAGES,
     DEFAULT_VIDEO_PROFILE,
+    DEFAULT_VIDEO_PROFILE_BY_LANGUAGE,
+    VIDEO_PROFILES_BY_LANGUAGE,
     ACTIVE_VIDEO_PROFILES,
     LEGACY_VIDEO_PROFILES,
     VIDEO_PROFILES,
@@ -3647,6 +3822,7 @@ if (typeof module !== "undefined") {
     formatDocumentNameError,
     inflateRaw,
     mapRowToFields,
+    normalizeContentLanguage,
     normalizeGuidComponent,
     normalizeProgramType,
     parseDateTimeToUtcString,
@@ -3659,6 +3835,11 @@ if (typeof module !== "undefined") {
     generateExternalId,
     classifyTemplateVersion,
     validateEpisodeExternalId,
+    validateExternalIdLanguage,
+    videoProfilesForLanguage,
+    defaultVideoProfileForLanguage,
+    languageForVideoProfile,
+    equivalentVideoProfileForLanguage,
     profileForFields,
     requiredFieldsForSingle,
     sanitizeDocumentName,
